@@ -5,9 +5,9 @@ Current delivery: [draft PR #1](https://github.com/SarutobiSasuke8/reaper-mcp/pu
 
 ## What parity means
 
-Practical parity means an agent can inspect a real session, compose and edit MIDI/audio, route tracks, control FX and automation, render, measure the result and undo its changes reliably. It does not mean copying every advertised tool name. Keep 12–15 top-level tools, progressive discovery and explicit live/offline capability support.
+Practical parity means an agent can inspect a real session, compose and edit MIDI/audio, route tracks, control FX and automation, render, measure the result and undo its changes reliably. It does not mean copying every advertised tool name. Keep 12Ã¢â‚¬â€œ15 top-level tools, progressive discovery and explicit live/offline capability support.
 
-Estimated remaining effort from the offline checkpoint: **18–30 engineering days for practical workflow parity**, including integration and regression work; **35–55 days total for broad advanced coverage**. These are planning estimates, not elapsed agent runtime or promised delivery dates. Assumptions: one engineer, existing music logic reusable after licence/source review, REAPER available for Windows and Linux testing, no native extension development. Confidence: medium-low until live and fresh-install rendering pass. The earlier 18/23 November targets are provisional v0 targets, not parity commitments.
+Estimated remaining effort from the offline checkpoint: **18Ã¢â‚¬â€œ30 engineering days for practical workflow parity**, including integration and regression work; **35Ã¢â‚¬â€œ55 days total for broad advanced coverage**. These are planning estimates, not elapsed agent runtime or promised delivery dates. Assumptions: one engineer, existing music logic reusable after licence/source review, REAPER available for Windows and Linux testing, no native extension development. Confidence: medium-low until live and fresh-install rendering pass. The earlier 18/23 November targets are provisional v0 targets, not parity commitments.
 
 ## Comparison set
 
@@ -24,7 +24,7 @@ Primary repositories reviewed on 16 November. This is a capability benchmark set
 
 DoomsdayxProductions/Reaper-MCP is excluded under the originating task. Optional model weights, paid plugins and non-commercial backends are not baseline dependencies.
 
-## Current evidence and gaps
+## Initial checkpoint evidence and gaps (superseded by updates below)
 
 Implemented: typed offline song model, conservative RPP read/write, MIDI/audio import, tempo map, sends, JSFX references, mix/stem/region job generation, WAV analysis, workspace confinement, read-only mode, dry-run edits and 14-tool MCP surface. At the initial checkpoint Node 20/22 each passed 15 tests with the installed-render test skipped.
 
@@ -34,20 +34,20 @@ Missing: live bridge, robust existing-project editing, native plugin discovery/p
 
 ## Delivery milestones
 
-Effort ranges below sum to 18–30 days. Each item is incomplete until its acceptance evidence exists. Phase PRs remain separate; stacked PRs name their base. No merge, publication or release is implied.
+Effort ranges below sum to 18Ã¢â‚¬â€œ30 days. Each item is incomplete until its acceptance evidence exists. Phase PRs remain separate; stacked PRs name their base. No merge, publication or release is implied.
 
 | Key / original phase | Remaining days | Acceptance criteria |
 | --- | --- | --- |
-| parity-render / P0–P1 | 2–3 | Fresh isolated Windows and Linux renders; audible mix, bus-aware stems and regions; bounded timeout/cancel; no user config changes; actionable first-run diagnosis |
-| parity-live / P2 | 3–5 | Bounded Lua defer bridge, correlated atomic IPC, explicit mode and heartbeat; no silent fallback after dispatch; project identity guards; one undo block per mutation; dryRun; disconnected/stale/restart tests |
-| parity-edit / P1–P2 | 3–5 | Track/item/MIDI edits, sends and sidechains, FX discovery/parameters and automation; existing native project state preserved; live/offline workflow fixtures with declared unsupported capabilities |
-| parity-music / P3 | 4–7 | Map every entry in the existing 138-tool ASV inventory to ported, adapted, replaced, deferred or LMMS-only; source SHA and licence per module; theory/groove/arrangement/persona/style/DJ/audio workflows verified |
-| parity-feedback / P4 | 3–5 | Render/analyse/adjust/rerender fixtures; native stats cross-check; stable IDs, bounded batches, error recovery and before/after evidence; schema budget under 8k tokens |
-| parity-package / P5 | 3–5 | Node 20/22 Windows/Linux checks, clean install/doctor/uninstall, documented optional dependencies, real agent workflow evals, package inspection, no binary or credentials bundled |
+| parity-render / P0Ã¢â‚¬â€œP1 | 2Ã¢â‚¬â€œ3 | Fresh isolated Windows and Linux renders; audible mix, bus-aware stems and regions; bounded timeout/cancel; no user config changes; actionable first-run diagnosis |
+| parity-live / P2 | 3Ã¢â‚¬â€œ5 | Bounded Lua defer bridge, correlated atomic IPC, explicit mode and heartbeat; no silent fallback after dispatch; project identity guards; one undo block per mutation; dryRun; disconnected/stale/restart tests |
+| parity-edit / P1Ã¢â‚¬â€œP2 | 3Ã¢â‚¬â€œ5 | Track/item/MIDI edits, sends and sidechains, FX discovery/parameters and automation; existing native project state preserved; live/offline workflow fixtures with declared unsupported capabilities |
+| parity-music / P3 | 4Ã¢â‚¬â€œ7 | Map every entry in the existing 138-tool ASV inventory to ported, adapted, replaced, deferred or LMMS-only; source SHA and licence per module; theory/groove/arrangement/persona/style/DJ/audio workflows verified |
+| parity-feedback / P4 | 3Ã¢â‚¬â€œ5 | Render/analyse/adjust/rerender fixtures; native stats cross-check; stable IDs, bounded batches, error recovery and before/after evidence; schema budget under 8k tokens |
+| parity-package / P5 | 3Ã¢â‚¬â€œ5 | Node 20/22 Windows/Linux checks, clean install/doctor/uninstall, documented optional dependencies, real agent workflow evals, package inspection, no binary or credentials bundled |
 
 Dependencies: live and render can progress independently; edit needs live for native-project coverage; feedback needs render+edit; packaging closes after all preceding acceptance. Music pure functions can progress independently, adapters need edit.
 
-Advanced breadth adds approximately **17–25 days**: takes/comping, detailed MIDI CC/pitch/program handling, tempo ramps, automation shapes/modulation, plugin-state preservation, larger-session performance, richer composition and reference-mix analysis. Full REAPER API coverage is not estimated as a finite parity commitment.
+Advanced breadth adds approximately **17Ã¢â‚¬â€œ25 days**: takes/comping, detailed MIDI CC/pitch/program handling, tempo ramps, automation shapes/modulation, plugin-state preservation, larger-session performance, richer composition and reference-mix analysis. Full REAPER API coverage is not estimated as a finite parity commitment.
 
 ## Required proof scenarios
 
@@ -64,3 +64,15 @@ Use the existing ASV `Workspace/Grok/Engineering/2026-11-16 Music tooling invent
 The uploaded Windows architecture guidance informs isolated configuration, Lua defer work, undo and native render statistics. SWS, ReaPack, themes and other extensions are optional until a specific accepted capability requires them. Lua sockets are not assumed to exist.
 
 Mirrors: main vault `Portfolio/Dev/MCP Servers/REAPER MCP Parity Roadmap.md`; ASV execution roadmap; control-plane project `reaper-mcp` when created. At assessment time the project is absent and Codex has roadmap:write but lacks projects:write; project creation is already assigned to Claude Code by Lingxi. This is a recording dependency, not a build blocker.
+
+## Windows alpha pass, 16 November 2026
+
+Windows render startup fixed using REAPER-generated dummy audio settings. Fresh-profile tone PASS (1 s, 44.1 kHz, -20 dBFS); create/edit/save/reopen arrangement PASS with mix and source stem at -26 dBFS over 2 s, region at -26 dBFS over 1 s. Native live inspection, dryRun, gain/pan writes, one-step undo, stale-revision rejection and real stdio live session verified. Setup/launch/doctor and explicit mode documentation added. Automated Node 20/22 suites: 22 pass, 1 optional integration skipped; native acceptance scripts run separately and pass.
+
+P0/P1 Windows render and the first P2 live slice now have evidence. Full live MIDI/item/routing/FX writes, Linux testing, project-switch/restart stress tests and P3 inventory ports remain open. Alpha is not full parity or completion of all P0â€“P5 phases.
+
+## Reconnection and Codex registration, 16 November 2026
+
+Protocol 2 replaces the poisoned shared request slot with unique atomic request files and a heartbeat. Managed startup reuses the isolated instance and relaunches after closure; it never kills unsaved sessions. Native lifecycle tests now pass for project-switch and restart stale-write guards, expired-request recovery and concurrent clients. A fresh installed-package acceptance run passed, and the exact enabled Codex registration discovered 14 tools and read the live project after managed restart.
+
+Version 0.1.0-alpha.1 is prepared as Windows-only. Node 20/22 suites: 24 pass, 1 opt-in render skip, with separate native checks passed. Production dependency audit: 0 reported vulnerabilities. See RELEASE_CHECKS.md for evidence, boundaries and remaining human review/publication actions. Advanced live editing, P3 ports and Linux remain open; this is an alpha release candidate, not full parity.

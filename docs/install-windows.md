@@ -22,6 +22,4 @@ Example client configuration (adapt placeholders for the chosen client):
 }
 ```
 
-This checkpoint is offline-only. `mode: live` returns an explicit unavailable error. Auto currently selects offline. No bridge is installed in your normal REAPER session. File save is new-file-only; parent directories must already exist.
-
-The render wrapper is experimental and currently fails the Windows unattended-startup probe; see [headless.md](headless.md). Do not rely on it for unattended production work yet. A portable evaluation setup and optional extensions are described in [architecture.md](architecture.md), not installed automatically.
+See [Windows alpha usage](windows-alpha.md) for setup, launch, doctor, explicit modes, live limits and recovery. Saves create new files only. No bridge or settings are installed into your normal REAPER profile.

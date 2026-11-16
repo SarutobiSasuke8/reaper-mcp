@@ -23,10 +23,10 @@ export async function locateReaper(): Promise<string | undefined> {
   return undefined;
 }
 export function isolatedIni(platform = process.platform): string {
-  // Candidate isolated device settings; unattended startup is still a P0 gate.
+  // Windows dummy-device settings observed from REAPER 7.86 preferences.
   // Never copy user config or set licence/nag fields. Auto-close render is bit 0.
   return platform === "win32"
-    ? "[REAPER]\naudiomode=4\nrenderclosewhendone=1\n[waveout]\n"
+    ? "[REAPER]\nrenderclosewhendone=1\n[audioconfig]\nmode=4\ndummy_srate=44100\ndummy_blocksize=1024\n"
     : "[REAPER]\naudiomode=0\nrenderclosewhendone=1\n";
 }
 export async function runProcess(

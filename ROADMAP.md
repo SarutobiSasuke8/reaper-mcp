@@ -82,4 +82,3 @@ Version 0.1.0-alpha.1 is prepared as Windows-only. Node 20/22 suites: 24 pass, 1
 Implemented live track creation, catalogue instrument insertion, beat-based MIDI clips, note readback, native save/open and isolated mix render. Four-instrument real MCP proof passed. The surface remains 14 tools. See [live music](docs/live-music.md) for limits and [all 25 requested instrument/workflow additions](docs/instrument-roadmap.md) for staged priorities; BBC Discover is first.
 
 Remaining: live MIDI CC/pitch bend and editing existing clips, preset browsing/replacement, live stems/regions, BBC/Ample installation and instrument-specific acceptance.
-

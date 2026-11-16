@@ -21,4 +21,3 @@
 ## 0.1.0-alpha.2
 
 Native live track, instrument and MIDI creation through progressive capabilities. Adds catalogue/plugin/note discovery, native project save/open and isolated mix rendering. Longer bounded loading requests and post-load heartbeat refresh fix cold-plugin workflow interruptions. See docs/live-music.md and docs/instrument-roadmap.md.
-

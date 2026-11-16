@@ -2,7 +2,7 @@
 
 An agent-first MCP server for [REAPER](https://www.reaper.fm/), built by Alexei Udall.
 
-**Status: Windows public-alpha candidate, 0.1.0-alpha.4.** Package prepared for release; see the release evidence before publishing.
+**Status: Windows public alpha, 0.1.0-alpha.4.** [Download the GitHub prerelease](https://github.com/SarutobiSasuke8/reaper-mcp/releases/tag/v0.1.0-alpha.4). npm publication is pending authentication.
 
 Compose native MIDI tracks, insert configured instruments, shape CC dynamics and keyswitch articulations, save projects and render audio through 14 MCP tools. Offline workflows also support a conservative RPP subset, MIDI/WAV import, mix/stem/region rendering and audio measurements.
 

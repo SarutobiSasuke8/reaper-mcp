@@ -89,3 +89,18 @@ Remaining: live MIDI CC/pitch bend and editing existing clips, preset browsing/r
 PRs #1-#4 merged; stable Codex installation upgraded and verified live with 14 tools. Fresh installed-package composition/render/reconnect/restart acceptance and system-output probe passed without Computer Use. Node 20/22 Windows CI passed. Draft prerelease and checksum prepared; public visibility and npm authentication/publication remain operator actions. See [[RELEASE_CHECKS.md]] and [release evidence](docs/release-alpha-4.md).
 
 The alpha includes MIDI CC ramps and named articulation insertion. Remaining engineering scope: editing existing notes/controllers, transport, live stems/regions, preset replacement, general automation, Linux, independent-machine native acceptance and broader portable music inventory. Paid libraries and vocal synthesis are optional integrations, not release dependencies.
+
+
+## Public alpha and differentiation priorities, 2026-11-16
+
+Repository is public and [Windows alpha.4](https://github.com/SarutobiSasuke8/reaper-mcp/releases/tag/v0.1.0-alpha.4) is published on GitHub. npm remains pending authentication and scope access.
+
+The proposed next milestone is reliable musical iteration, not maximum action count. These are planned capabilities, not current promises:
+
+1. **Edit existing performances safely.** Stable track/item/take identifiers, note and CC edits, articulation replacement, tempo-map edits and guarded multi-operation changes. Proof: repair a timpani ending in an existing native project while preserving unrelated tracks and plugin state; undo restores it.
+2. **Audition revisions quickly.** Native region and stem rendering, before/after variants, loudness-matched listening previews and change reports. Proof: render only a changed eight-bar passage, compare it to the original, then commit the selected version without rebuilding the piece.
+3. **Understand instruments.** Catalogue range, articulations, keyswitch timing, CC mappings, legato behaviour, latency and library availability. Proof: reject an unavailable articulation, detect silent/out-of-range parts and substitute only with an explicit explanation. Never claim a patch contains a technique it does not.
+4. **Import and interpret scores.** MusicXML with voices, repeats, slurs, dynamics and tempo; measure-level provenance and separate score data from performance decisions. Proof: imported note/rhythm counts match a reference and humanisation remains reversible. PDF transcription is a separate uncertainty-bearing workflow.
+5. **Make unattended operation dependable.** Structured startup/job progress, cancellation, actionable missing-plugin errors, safe session ownership and a second-machine acceptance matrix. Proof: recover from closed REAPER, absent samples and interrupted rendering without altering user work or taking desktop focus.
+
+Keep the MCP surface compact, with capability discovery, predictable errors and bounded payloads. Add public example projects using bundled/free instruments, reproducible acceptance outputs and a short installation-to-render walkthrough. Vocal synthesis is a later adapter: audition score-driven singers first, then prove lyric/note alignment and export into REAPER before advertising integration.

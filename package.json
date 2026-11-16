@@ -1,0 +1,45 @@
+{
+  "name": "@sarutobi-sasuke/reaper-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A compact MCP surface for offline and live REAPER projects",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "reaper-mcp": "dist/src/stdio.js"
+  },
+  "exports": {
+    ".": "./dist/src/server.js",
+    "./song": "./dist/src/song/model.js",
+    "./rpp": "./dist/src/rpp/index.js"
+  },
+  "files": [
+    "dist/src",
+    "vendor",
+    "docs",
+    "bridge",
+    "README.md",
+    "THIRD_PARTY.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node scripts/run-tests.mjs",
+    "check": "npm run typecheck && npm test",
+    "start": "node dist/src/stdio.js",
+    "headless:check": "npm run build && node scripts/reaper-headless-check.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@tonejs/midi": "2.0.28",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.15",
+    "typescript": "5.9.3"
+  }
+}

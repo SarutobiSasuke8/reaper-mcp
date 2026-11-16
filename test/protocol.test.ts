@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +27,19 @@ async function connect(writes: boolean) {
   await client.connect(transport);
   return client;
 }
+test("stdio handshake and health report the installed package version", async () => {
+  const expected = JSON.parse(
+    await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  ).version;
+  const client = await connect(false);
+  try {
+    assert.equal(client.getServerVersion()?.version, expected);
+    const health = await client.callTool({ name: "reaper_health", arguments: { mode: "offline" } });
+    assert.equal((health.structuredContent as { result: { version: string } }).result.version, expected);
+  } finally {
+    await client.close();
+  }
+});
 test("real stdio exposes 14 tools below schema budget with honest annotations", async () => {
   const client = await connect(true);
   try {

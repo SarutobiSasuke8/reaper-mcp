@@ -1,12 +1,12 @@
 # Changelog
 
-## 0.1.0-alpha.4 - prepared 2026-11-16
+## 0.1.0-alpha.4 - GitHub alpha published 2026-11-16
 
 - Added explicit system-output versus dummy-audio configuration for new managed profiles; startup requests hidden windows by default.
 - Included native MIDI/instrument insertion, CC ramps and named keyswitch articulation workflows from alpha.2/alpha.3.
 - Read MCP handshake/health versions from package metadata.
 - Added installed-package acceptance using bundled ReaSynth, plus a native system-output probe and Windows Node 20/22 CI.
-- Updated installation, scope and recovery documentation. Draft prerelease prepared; not publicly published.
+- Updated installation, scope and recovery documentation. GitHub prerelease published; npm publication pending authentication.
 
 ## Earlier candidates
 

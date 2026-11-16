@@ -2,6 +2,8 @@
 
 Current checkpoint, 2026-11-16. Supersedes the historical checkpoints below.
 
+Repository made public and GitHub Windows alpha.4 prerelease published with the reviewed tarball and SHA-256 checksum. npm remains unpublished pending account authentication and scope access.
+
 - PRs #1, #2, #3 and #4 merged. Runtime/package version: 0.1.0-alpha.4.
 - Windows GitHub CI passed on Node 20 and 22; local typecheck and 31 tests passed, with 1 optional native fixture skipped.
 - Separate native checks passed: offline mix/stems/regions; bridge lifecycle/concurrent-client guards; fresh installed-package instrument/MIDI/CC/articulation creation, save, audible render, client reconnect, managed restart and reopen.
@@ -9,11 +11,11 @@ Current checkpoint, 2026-11-16. Supersedes the historical checkpoints below.
 - New system-audio profile probe passed: WaveOut / Microsoft Sound Mapper opened. Background dummy mode is explicit; render workers remain silent. Existing profiles are preserved.
 - Stable local installation upgraded. A fresh client through the registered Codex transport reports alpha.4, 14 tools and live availability.
 - Runtime dependency audit: zero reported vulnerabilities.
-- Draft prerelease with tarball and SHA-256 checksum prepared. Repository remains private; npm identity check returns 401. Public publication has NOT occurred.
+- GitHub prerelease published with tarball and SHA-256 checksum; repository is public. npm identity check returns 401, so registry publication remains pending.
 
 See [release evidence and limits](docs/release-alpha-4.md), [installation](docs/install-windows.md) and [draft releases](https://github.com/SarutobiSasuke8/reaper-mcp/releases).
 
-Remaining distribution actions: authorise public repository visibility if desired, authenticate an npm account with scope access, publish the reviewed tarball with the alpha dist-tag, and publish the prerelease. These are distinct from technical alpha readiness. Native speaker capture and independent-machine REAPER acceptance are not claimed.
+Remaining distribution actions: authenticate an npm account with scope access and publish the reviewed tarball with the alpha dist-tag. These are distinct from technical alpha readiness. Native speaker capture and independent-machine REAPER acceptance are not claimed.
 
 ## Historical checkpoints
 

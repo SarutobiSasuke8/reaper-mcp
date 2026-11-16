@@ -28,7 +28,7 @@ Acceptance creates disposable workspaces and terminates only its own test proces
 
 This is an alpha, not feature parity with REAPER. Existing-note/CC editing, live stem/region rendering, transport control, arbitrary FX parameters, instrument replacement and general automation remain follow-ups. The offline parser rejects unsupported complex project state. Optional instruments are separately installed and licensed. Native sample-library presets are not bundled.
 
-Existing profiles are preserved. New audio-mode settings do not retroactively migrate their device configuration. Hidden launch is a Windows process-start request, not a guarantee that third-party plugin/licensing dialogs cannot appear. First-run plugin scanning and external library prompts can delay or block a session; the MCP reports unavailable rather than silently editing an offline project.
+Existing profiles are preserved. New audio-mode settings do not retroactively migrate their device configuration. Hidden launch is a Windows process-start request, not a guarantee that third-party plugin/licensing dialogs cannot appear. The installed acceptance check allows 180 seconds for cold startup; an initial final-package attempt exceeded its former 90-second budget during plugin scanning. First-run plugin scanning and external library prompts can delay or block a session; the MCP reports unavailable rather than silently editing an offline project.
 
 ## Release procedure
 

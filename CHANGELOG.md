@@ -17,3 +17,8 @@
 - Backend-neutral validated song model, bounded object paths, MIDI/WAV import and conservative RPP subset parser/writer.
 - Fourteen-tool stdio surface with opt-in writes, capability discovery and source-attributed audio measurements.
 - Draft render wrapper and explicit failed Windows startup evidence. Live mode, ReaPlugs, complete music ports and release packaging remain pending.
+
+## 0.1.0-alpha.2
+
+Native live track, instrument and MIDI creation through progressive capabilities. Adds catalogue/plugin/note discovery, native project save/open and isolated mix rendering. Longer bounded loading requests and post-load heartbeat refresh fix cold-plugin workflow interruptions. See docs/live-music.md and docs/instrument-roadmap.md.
+

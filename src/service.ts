@@ -24,9 +24,12 @@ export const pathSchema = z
   .string()
   .min(1)
   .max(256)
-  .regex(/^\/(?:project|tracks|markers)(?:\/(?:[a-zA-Z_]+|0|[1-9][0-9]*))*$/);
+  .regex(
+    /^\/(?:project|tracks|markers|plugins|instruments)(?:\/(?:[a-zA-Z_]+|0|[1-9][0-9]*))*$/,
+  );
 export { capabilities } from "./editing.js";
 import { capabilities, editSong } from "./editing.js";
+import { musicCapabilities } from "./music.js";
 
 export class ReaperService {
   song: Song = songSchema.parse({});
@@ -316,13 +319,15 @@ export class ReaperService {
   }
   async health(): Promise<unknown> {
     return {
-      version: "0.1.0-alpha.1",
+      version: "0.1.0-alpha.2",
       offline: true,
       live: this.live ? await this.live.available() : false,
       liveCapabilities: [
         "project/track inspection",
         "FX inventory",
         "track name/gain/pan/mute",
+        "native track, catalogue instrument and beat-based MIDI insertion",
+        "native project new/open/save and isolated mix render",
       ],
       reaperInstalled: !!(await locateReaper()),
       writesEnabled: this.allowWrites,
@@ -330,7 +335,9 @@ export class ReaperService {
   }
   describe(subject: string): unknown {
     if (subject === "song" || subject === "/project") return songJsonSchema;
-    const cap = capabilities.find((c) => c.name === subject);
+    const cap = [...capabilities, ...musicCapabilities].find(
+      (c) => c.name === subject,
+    );
     if (cap)
       return {
         name: cap.name,

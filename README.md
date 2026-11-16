@@ -32,3 +32,5 @@ REAPER is commercial software from Cockos. This repository never contains or red
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
+
+Live composition: [MIDI and instrument workflow](docs/live-music.md). Optional additions: [instrument and workflow expansion plan](docs/instrument-roadmap.md).

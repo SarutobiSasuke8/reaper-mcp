@@ -4,6 +4,13 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { ToolError } from "./errors.js";
 import {
+  instruments,
+  musicCapabilities,
+  runMusic,
+  liveProject,
+  renderLive,
+} from "./music.js";
+import {
   ReaperService,
   capabilities,
   modeSchema,
@@ -202,7 +209,56 @@ export async function call(
       "reaper_find_capability",
     ]);
     if (selected === "live" && !common.has(name)) {
-      if (name === "reaper_get")
+      if (
+        (name === "reaper_get" || name === "reaper_list") &&
+        args.path === "/instruments"
+      ) {
+        const all = await instruments();
+        value =
+          name === "reaper_get"
+            ? all
+            : {
+                total: all.length,
+                offset: args.offset,
+                items: all.slice(
+                  args.offset as number,
+                  (args.offset as number) + (args.limit as number),
+                ),
+              };
+      } else if (name === "reaper_run") {
+        if (!service.enabled.has("editing"))
+          throw new ToolError(
+            "toolset_disabled",
+            "Enable the editing toolset first",
+          );
+        value = await runMusic(
+          service.live!,
+          args.capability as string,
+          args.args,
+          args.dryRun as boolean,
+        );
+      } else if (name === "reaper_project") {
+        value = await liveProject(
+          service.live!,
+          service.workspace,
+          args.operation as string,
+          args.file as string | undefined,
+          args.song,
+        );
+      } else if (name === "reaper_render") {
+        if (args.target !== "mix")
+          throw new ToolError(
+            "unsupported_live",
+            "Live rendering currently supports mix only",
+          );
+        value = await renderLive(
+          service.live!,
+          service.workspace,
+          args.timeoutMs as number,
+        );
+      } else if (name === "reaper_analyze") {
+        value = await service.analyze(args.file as string);
+      } else if (name === "reaper_get")
         value = await service.live!.get(args.path as string);
       else if (name === "reaper_list") {
         const all = await service.live!.get(args.path as string);
@@ -237,7 +293,9 @@ export async function call(
             {
               name: "editing",
               enabled: service.enabled.has("editing"),
-              capabilities: capabilities.map((c) => c.name),
+              capabilities: [...capabilities, ...musicCapabilities].map(
+                (c) => c.name,
+              ),
             },
           ];
           break;
@@ -247,7 +305,7 @@ export async function call(
           break;
         case "reaper_describe":
           value = {
-            supportedMode: "offline",
+            supportedModes: ["offline", "live"],
             definition: service.describe(args.subject as string),
             live: {
               get: [
@@ -267,7 +325,10 @@ export async function call(
           };
           break;
         case "reaper_find_capability":
-          value = capabilities
+          value = [
+            ...capabilities.map((c) => ({ ...c, modes: ["offline"] })),
+            ...musicCapabilities,
+          ]
             .filter((c) =>
               `${c.name} ${c.description}`
                 .toLowerCase()
@@ -277,7 +338,7 @@ export async function call(
               name: c.name,
               description: c.description,
               toolset: c.toolset,
-              modes: ["offline"],
+              modes: c.modes,
             }));
           break;
         case "reaper_get":
@@ -369,7 +430,7 @@ export async function call(
 export function createMcpServer(service: ReaperService): McpServer {
   const server = new McpServer({
     name: "reaper-mcp",
-    version: "0.1.0-alpha.1",
+    version: "0.1.0-alpha.2",
   });
   // Serialize calls so async imports cannot overwrite edits made while reading files.
   let queue: Promise<unknown> = Promise.resolve();

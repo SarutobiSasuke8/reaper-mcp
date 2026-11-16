@@ -76,3 +76,10 @@ P0/P1 Windows render and the first P2 live slice now have evidence. Full live MI
 Protocol 2 replaces the poisoned shared request slot with unique atomic request files and a heartbeat. Managed startup reuses the isolated instance and relaunches after closure; it never kills unsaved sessions. Native lifecycle tests now pass for project-switch and restart stale-write guards, expired-request recovery and concurrent clients. A fresh installed-package acceptance run passed, and the exact enabled Codex registration discovered 14 tools and read the live project after managed restart.
 
 Version 0.1.0-alpha.1 is prepared as Windows-only. Node 20/22 suites: 24 pass, 1 opt-in render skip, with separate native checks passed. Production dependency audit: 0 reported vulnerabilities. See RELEASE_CHECKS.md for evidence, boundaries and remaining human review/publication actions. Advanced live editing, P3 ports and Linux remain open; this is an alpha release candidate, not full parity.
+
+## 2026-11-16: native composition pass
+
+Implemented live track creation, catalogue instrument insertion, beat-based MIDI clips, note readback, native save/open and isolated mix render. Four-instrument real MCP proof passed. The surface remains 14 tools. See [live music](docs/live-music.md) for limits and [all 25 requested instrument/workflow additions](docs/instrument-roadmap.md) for staged priorities; BBC Discover is first.
+
+Remaining: live MIDI CC/pitch bend and editing existing clips, preset browsing/replacement, live stems/regions, BBC/Ample installation and instrument-specific acceptance.
+

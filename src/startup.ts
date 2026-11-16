@@ -69,7 +69,16 @@ export async function ensureRunning(
       throw Error("REAPER not found; install separately or set REAPER_PATH");
     const ini = path.join(profile, "reaper.ini");
     try {
-      await writeFile(ini, isolatedIni(), { flag: "wx" });
+      const vst = process.env.REAPER_MCP_VST_PATHS;
+      if (vst && /[\r\n]/.test(vst)) throw Error("Invalid VST search paths");
+      await writeFile(
+        ini,
+        isolatedIni().replace(
+          "[REAPER]\n",
+          `[REAPER]\n${vst ? `vstpath64=${vst}\n` : ""}`,
+        ),
+        { flag: "wx" },
+      );
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
     }

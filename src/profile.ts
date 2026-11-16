@@ -13,7 +13,7 @@ export function liveIni(
   // No recording inputs, licence state or normal user profile is imported.
   const ini = audioMode === "dummy" ? isolatedIni(platform)
     : platform === "win32"
-      ? "[REAPER]\n[audioconfig]\nmode=0\nwaveout_srate=44100\nwaveout_bps=16\nwaveout_devicein=-1\nwaveout_deviceout=-1\nwaveout_nch_in=0\nwaveout_nch_out=2\nwaveout_bs=1024\nwaveout_numblocks=8\n"
+      ? "[REAPER]\n[audioconfig]\nmode=2\nwaveout_srate=44100\nwaveout_bps=16\nwaveout_devicein=-1\nwaveout_deviceout=-1\nwaveout_nch_in=0\nwaveout_nch_out=2\nwaveout_bs=1024\nwaveout_numblocks=8\n"
       : "[REAPER]\n";
   return ini.replace("[REAPER]\n", `[REAPER]\n${vst ? `vstpath64=${vst}\n` : ""}`);
 }

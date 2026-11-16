@@ -18,6 +18,8 @@ Date: 2026-11-16. Scope: Windows 10/11; native checks on Windows with REAPER 7.8
 - Native render from that installed package: 4 seconds, 44.1 kHz stereo, peak -26.99 dBFS, zero clipped samples. Render worker completed in 24.3 seconds.
 - Native lifecycle: PASS for project-switch guards, expired-request handling, heartbeat loss, existing-client reconnect after restart and concurrent-client revision checks.
 - Offline mix/stem/region acceptance: PASS. Audio reaches its bus; mix and audio stem are 2 seconds at -26 dBFS, selected region is 1 second. The MIDI-only fixture has no instrument and is intentionally silent.
+- System-output native probe: PASS. A fresh profile opened WaveOut / Microsoft Sound Mapper with no input channels; the probe ran an empty transport and queried REAPER directly. This verifies device opening, not a physical-speaker recording.
+- GitHub Windows CI: Node 20 and Node 22 both passed checks and package creation.
 - Runtime dependency audit: zero reported vulnerabilities.
 
 Acceptance creates disposable workspaces and terminates only its own test processes. No Computer Use, personal configuration import or trial/licence-state changes were used.
@@ -30,7 +32,9 @@ Existing profiles are preserved. New audio-mode settings do not retroactively mi
 
 ## Release procedure
 
-1. Complete the system-audio probe and remote CI; record any limits below.
+1. System-audio probe and remote CI completed; rerun checks when changing runtime code.
 2. Build and inspect `npm pack`, install it in a clean prefix, and run the installed acceptance script.
 3. Merge the reviewed PR stack, then prepare a draft prerelease with the tarball and SHA-256 checksum.
 4. Public distribution is separate: the repository is currently private; npm publication requires an authorised account for the package scope. Do not label a draft or local installation as publicly published.
+
+Publication status: npm identity check returned HTTP 401 on 2026-11-16. No npm publication was attempted. Repository visibility remains private pending an explicit public-release action.

@@ -12,6 +12,7 @@ Observed 16 November 2026. Technical candidate for an explicitly labelled Window
 | Package | Fresh local-prefix install from tarball with scripts disabled succeeded; compiled server, Lua bridge, licence, docs and native check scripts included; source/installed bridge SHA256 matched |
 | Dependency audit | npm production audit: 0 vulnerabilities reported |
 | Targeted content check | No local user-path or credential-shaped matches in src/bridge/docs/README/THIRD_PARTY scan; this is not an independent security audit |
+| npm access | Registry package lookup returned 404 (absent or inaccessible); `npm whoami` returned 401 Unauthorized. Publish access is not verified and requires operator authentication. No upload attempted. |
 | Git | Changes remain in reviewed-workflow PRs; no merge, tag, npm upload or visibility change |
 
 ## Release scope and remaining limits

@@ -40,7 +40,20 @@ local function track_view(t)
     pan=reaper.GetMediaTrackInfo_Value(t,"D_PAN"),mute=reaper.GetMediaTrackInfo_Value(t,"B_MUTE")~=0,
     itemCount=reaper.CountTrackMediaItems(t),fxCount=reaper.TrackFX_GetCount(t)}
 end
+local function item_view(p,it)
+  local take=reaper.GetActiveTake(it)
+  local _,guid=reaper.GetSetMediaItemInfo_String(it,'GUID','',false)
+  local takeguid='';if take then _,takeguid=reaper.GetSetMediaItemTakeInfo_String(take,'GUID','',false) end
+  local pos=reaper.GetMediaItemInfo_Value(it,'D_POSITION')
+  local start=reaper.TimeMap2_timeToQN(p,pos)
+  return {guid=guid,takeGuid=takeguid,isMidi=take and reaper.TakeIsMIDI(take) or false,
+    startBeat=start,lengthBeats=reaper.TimeMap2_timeToQN(p,pos+reaper.GetMediaItemInfo_Value(it,'D_LENGTH'))-start,
+    looped=reaper.GetMediaItemInfo_Value(it,'B_LOOPSRC')~=0}
+end
 local function get_value(p, object_path)
+  local vt,vi=object_path:match('^/tracks/(%d+)/items/(%d+)$')
+  if vt then return item_view(p,assert(reaper.GetTrackMediaItem(assert(reaper.GetTrack(p,tonumber(vt))),tonumber(vi)),"Item not found")) end
+
   if object_path=="/plugins" then
     local plugins={__array=true}
     for i=0,2047 do local ok,name,id=reaper.EnumInstalledFX(i);if not ok then break end;plugins[#plugins+1]={name=name,id=id} end
@@ -56,7 +69,7 @@ local function get_value(p, object_path)
     local events={__array=true}
     for i=0,count-1 do
       local ok,selected,muted,pos,msg,channel,cc,value=reaper.MIDI_GetCC(take,i)
-      if ok and msg==176 then events[#events+1]={beat=reaper.MIDI_GetProjQNFromPPQPos(take,pos),controller=cc,value=value,channel=channel} end
+      if ok and msg==176 then events[#events+1]={index=i,selected=selected,muted=muted,beat=reaper.MIDI_GetProjQNFromPPQPos(take,pos),controller=cc,value=value,channel=channel} end
     end
     return events
   end
@@ -68,7 +81,7 @@ local function get_value(p, object_path)
     assert(reaper.TakeIsMIDI(take),"Not MIDI")
     local _,count=reaper.MIDI_CountEvts(take);assert(count<=10000,"Note read limit")
     local notes={__array=true}
-    for i=0,count-1 do local ok,selected,muted,start,ending,channel,pitch,velocity=reaper.MIDI_GetNote(take,i);notes[#notes+1]={startBeat=reaper.MIDI_GetProjQNFromPPQPos(take,start),endBeat=reaper.MIDI_GetProjQNFromPPQPos(take,ending),channel=channel,pitch=pitch,velocity=velocity} end
+    for i=0,count-1 do local ok,selected,muted,start,ending,channel,pitch,velocity=reaper.MIDI_GetNote(take,i);notes[#notes+1]={index=i,selected=selected,muted=muted,startBeat=reaper.MIDI_GetProjQNFromPPQPos(take,start),endBeat=reaper.MIDI_GetProjQNFromPPQPos(take,ending),channel=channel,pitch=pitch,velocity=velocity} end
     return notes
   end
   if object_path=="/project" then return {name=reaper.GetProjectName(p),tempo=reaper.Master_GetTempo(),trackCount=reaper.CountTracks(p)} end
@@ -117,6 +130,15 @@ local function music(p,a)
     else
       local folder=a[10];assert(folder and not folder:find('[%z\r\n]'),"Invalid folder")
       assert(reaper.GetProjectLength(p)>0,"Project contains no renderable timeline")
+      local startpos,endpos=0,reaper.GetProjectLength(p)+2
+      if a[11] then
+        local first,last=number(a[11],0,100000),number(a[12],0,100000)
+        assert(last>first,"Invalid section")
+        startpos=reaper.TimeMap2_QNToTime(p,first)
+        endpos=reaper.TimeMap2_QNToTime(p,last)+number(a[13],0,30)
+        assert(startpos<reaper.GetProjectLength(p),"Section starts beyond project")
+      end
+      result.startSeconds=startpos;result.endSeconds=endpos
       perform=function()
         local nums={};local strs={}
         for _,key in ipairs({'RENDER_BOUNDSFLAG','RENDER_STARTPOS','RENDER_ENDPOS','RENDER_SETTINGS','RENDER_SRATE','RENDER_CHANNELS','RENDER_TAILFLAG'}) do nums[key]=reaper.GetSetProjectInfo(p,key,0,false) end
@@ -125,7 +147,7 @@ local function music(p,a)
           reaper.GetSetProjectInfo_String(p,'RENDER_FILE',folder,true)
           reaper.GetSetProjectInfo_String(p,'RENDER_PATTERN','mix',true)
           reaper.GetSetProjectInfo_String(p,'RENDER_FORMAT','ZXZhdxgAAQ==',true)
-          for key,v in pairs({RENDER_BOUNDSFLAG=0,RENDER_STARTPOS=0,RENDER_ENDPOS=reaper.GetProjectLength(p)+2,RENDER_SETTINGS=0,RENDER_SRATE=44100,RENDER_CHANNELS=2,RENDER_TAILFLAG=0}) do reaper.GetSetProjectInfo(p,key,v,true) end
+          for key,v in pairs({RENDER_BOUNDSFLAG=0,RENDER_STARTPOS=startpos,RENDER_ENDPOS=endpos,RENDER_SETTINGS=0,RENDER_SRATE=44100,RENDER_CHANNELS=2,RENDER_TAILFLAG=0}) do reaper.GetSetProjectInfo(p,key,v,true) end
           reaper.Main_SaveProjectEx(p,filename,0)
         end)
         for key,v in pairs(nums) do reaper.GetSetProjectInfo(p,key,v,true) end
@@ -134,6 +156,91 @@ local function music(p,a)
       end
     end
     result.file=filename
+  elseif action=="live_edit_performance" then
+    local t=assert(reaper.GetTrack(p,number(a[9],0,255,true)),"Track not found")
+    local it=assert(reaper.GetTrackMediaItem(t,number(a[10],0,9999,true)),"Item not found")
+    local take=assert(reaper.GetActiveTake(it),"Take not found")
+    local view=item_view(p,it)
+    assert(reaper.CountTakes(it)==1,"Multiple-take items unsupported")
+    assert(view.isMidi and view.takeGuid==a[11],"MIDI take identity mismatch")
+    -- REAPER creates new clips with loop-source enabled, even when not extended.
+    -- Reject actual looping rather than that default checkbox alone.
+    local source=reaper.GetMediaItemTake_Source(take)
+    local length,isqn=reaper.GetMediaSourceLength(source)
+    assert(isqn and reaper.GetMediaSourceFileName(source,'')=='',"Only embedded MIDI is editable")
+    local offset=reaper.GetMediaItemTakeInfo_Value(take,'D_STARTOFFS')
+    assert(offset==0 and reaper.GetMediaItemTakeInfo_Value(take,'D_PLAYRATE')==1,"Offset or rate-adjusted take unsupported")
+    assert(not view.looped or view.lengthBeats<=length+0.000001,"Looped MIDI unsupported")
+    local ok,chunk=reaper.GetItemStateChunk(it,'',false);assert(ok,"Cannot inspect MIDI pooling")
+    assert(#chunk<=4000000,"MIDI item chunk limit")
+    local pool=chunk:match('POOLEDEVTS%s+(%b{})')
+    if pool then
+      assert(reaper.CountMediaItems(p)<=10000,"Pooling scan limit")
+      local occurrences=0
+      for j=0,reaper.CountMediaItems(p)-1 do
+        local yes,c=reaper.GetItemStateChunk(reaper.GetMediaItem(p,j),'',false);assert(yes,"Cannot inspect MIDI pooling")
+        assert(#c<=4000000,"Pooling scan chunk limit")
+        for id in c:gmatch('POOLEDEVTS%s+(%b{})') do if id==pool then occurrences=occurrences+1 end end
+      end
+      assert(occurrences==1,"Pooled MIDI unsupported; unpool before editing")
+    end
+    local _,nc,cc=reaper.MIDI_CountEvts(take);assert(nc<=10000 and cc<=10000,"Event limit")
+    local edits,seen,ramps={},{},{}
+    local function readnote(index)
+      local i=number(index,0,nc-1,true);assert(not seen[i],"Duplicate note index");seen[i]=true
+      local yes,sel,mute,b,e,ch,pitch,vel=reaper.MIDI_GetNote(take,i);assert(yes,"Note missing")
+      return {i=i,sel=sel,mute=mute,b=b,e=e,ch=ch,pitch=pitch,vel=vel}
+    end
+    for row in (assert(a[12])..';'):gmatch('(.-);') do if row~='' then
+      local i,b,d,pitch,vel,ch=row:match('^([^,]+),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*)$')
+      local n=readnote(i)
+      local oldb=reaper.MIDI_GetProjQNFromPPQPos(take,n.b)
+      local duration=reaper.MIDI_GetProjQNFromPPQPos(take,n.e)-oldb
+      local start=b~='' and number(b,0,view.lengthBeats) or oldb-view.startBeat
+      duration=d~='' and number(d,0.000001,view.lengthBeats) or duration
+      assert(start>=0 and start+duration<=view.lengthBeats+0.0000001,"Edited note outside item")
+      n.b=reaper.MIDI_GetPPQPosFromProjQN(take,view.startBeat+start)
+      n.e=reaper.MIDI_GetPPQPosFromProjQN(take,view.startBeat+start+duration)
+      assert(n.e-n.b>=1,"Edited note shorter than one MIDI tick")
+      if pitch~='' then n.pitch=number(pitch,0,127,true) end
+      if vel~='' then n.vel=number(vel,1,127,true) end
+      if ch~='' then n.ch=number(ch,0,15,true) end
+      edits[#edits+1]=n
+    end end
+    for row in (assert(a[13])..';'):gmatch('(.-);') do if row~='' then
+      local i,from,to=row:match('^([^,]+),([^,]+),([^,]+)$');local n=readnote(i)
+      assert(n.pitch==number(from,0,127,true) and n.vel==1,"Existing note is not the expected catalogue keyswitch")
+      n.pitch=number(to,0,127,true);edits[#edits+1]=n
+    end end
+    local total=#edits
+    for row in (assert(a[14])..';'):gmatch('(.-);') do if row~='' then
+      local b,e,c,v,w,steps,ch=row:match('^([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)$')
+      local r={b=number(b,0,view.lengthBeats),e=number(e,0,view.lengthBeats),cc=number(c,0,127,true),v=number(v,0,127,true),w=number(w,0,127,true),steps=number(steps,1,64,true),ch=number(ch,0,15,true)}
+      assert(r.e>r.b and r.e<view.lengthBeats,"Ramp outside item")
+      r.b=reaper.MIDI_GetPPQPosFromProjQN(take,view.startBeat+r.b)
+      r.e=reaper.MIDI_GetPPQPosFromProjQN(take,view.startBeat+r.e)
+      assert((r.e-r.b)/r.steps>=1,"Ramp samples collide at MIDI tick resolution")
+      for _,q in ipairs(ramps) do assert(q.ch~=r.ch or q.cc~=r.cc or q.e<r.b or r.e<q.b,"Overlapping ramps") end
+      total=total+r.steps+1;ramps[#ramps+1]=r
+    end end
+    assert(total>0 and total<=128,"Edit limit")
+    result.editedNotes=#edits;result.replacedControllerRanges=#ramps
+    perform=function()
+      local saved,raw=reaper.MIDI_GetAllEvts(take,'');assert(saved,"Cannot snapshot MIDI")
+      local success,err=pcall(function()
+        for _,n in ipairs(edits) do assert(reaper.MIDI_SetNote(take,n.i,n.sel,n.mute,n.b,n.e,n.ch,n.pitch,n.vel,true),"Note edit failed") end
+        for i=cc-1,0,-1 do
+          local yes,sel,mute,pos,msg,ch,c=reaper.MIDI_GetCC(take,i)
+          for _,r in ipairs(ramps) do if yes and msg==176 and ch==r.ch and c==r.cc and pos>=r.b-0.5 and pos<=r.e+0.5 then assert(reaper.MIDI_DeleteCC(take,i));break end end
+        end
+        for _,r in ipairs(ramps) do for j=0,r.steps do
+          assert(reaper.MIDI_InsertCC(take,false,false,r.b+(r.e-r.b)*j/r.steps,176,r.ch,r.cc,math.floor(r.v+(r.w-r.v)*j/r.steps+0.5)))
+        end end
+        reaper.MIDI_Sort(take)
+      end)
+      if not success then assert(reaper.MIDI_SetAllEvts(take,raw),"MIDI rollback failed");error(err) end
+      reaper.UpdateItemInProject(it)
+    end
   elseif action=="live_add_track" then
     local name=a[9];assert(name and #name<=800 and not name:find('[%z\r\n]'),"Invalid name")
     local index=reaper.CountTracks(p);assert(index<256,"Track limit")

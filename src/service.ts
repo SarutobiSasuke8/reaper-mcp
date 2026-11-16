@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LiveBridge } from "./live.js";
 import MidiPackage from "@tonejs/midi";
 import path from "node:path";
 import {
@@ -30,15 +31,29 @@ import { capabilities, editSong } from "./editing.js";
 export class ReaperService {
   song: Song = songSchema.parse({});
   enabled = new Set<string>();
+  live?: LiveBridge;
+  private hadLive = false;
   constructor(
     public workspace: Workspace,
     public allowWrites = false,
-  ) {}
-  selectMode(mode: Mode): "offline" {
-    if (mode === "live")
+    bridge?: LiveBridge,
+  ) {
+    this.live =
+      bridge ??
+      (process.env.REAPER_MCP_BRIDGE_DIR
+        ? new LiveBridge(process.env.REAPER_MCP_BRIDGE_DIR)
+        : undefined);
+  }
+  async selectMode(mode: Mode): Promise<"offline" | "live"> {
+    if (mode === "offline") return "offline";
+    if (this.live && (await this.live.available())) {
+      this.hadLive = true;
+      return "live";
+    }
+    if (mode === "live" || this.hadLive)
       throw new ToolError(
         "live_unavailable",
-        "Live bridge is not available in the offline checkpoint",
+        "Live bridge unavailable; no offline fallback after a live connection. Use explicit offline mode for offline work",
       );
     return "offline";
   }
@@ -299,7 +314,12 @@ export class ReaperService {
     return {
       version: "0.1.0",
       offline: true,
-      live: false,
+      live: this.live ? await this.live.available() : false,
+      liveCapabilities: [
+        "project/track inspection",
+        "FX inventory",
+        "track name/gain/pan/mute",
+      ],
       reaperInstalled: !!(await locateReaper()),
       writesEnabled: this.allowWrites,
     };

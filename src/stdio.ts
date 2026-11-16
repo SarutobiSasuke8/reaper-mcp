@@ -5,6 +5,14 @@ import { Workspace } from "./workspace.js";
 import { ReaperService } from "./service.js";
 import { createMcpServer } from "./server.js";
 
+if (
+  process.argv.includes("--doctor") ||
+  process.argv.includes("--setup") ||
+  process.argv.includes("--launch")
+) {
+  await (await import("./setup.js")).setup(process.argv.slice(2));
+  process.exit(process.exitCode ?? 0);
+}
 const root = process.env.REAPER_MCP_WORKSPACE;
 if (!root || !path.isAbsolute(root)) {
   process.stderr.write(

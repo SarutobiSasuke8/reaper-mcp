@@ -6,7 +6,7 @@ An agent-first MCP server for [REAPER](https://www.reaper.fm/), built by Alexei 
 
 The initial offline checkpoint now has a typed song model, RPP subset import/export, MIDI/WAV import, object-path editing, fourteen MCP tools and audio measurements. It uses the house MCP template's contracts and protocol-test patterns on the existing LMMS SDK stack.
 
-**Unattended rendering is not yet verified:** the Windows startup probe times out. Live mode is not implemented in this checkpoint. This is a review draft, not a completed v0 build.
+**Windows alpha candidate:** fresh-profile rendering and native live track inspection/editing have passed on REAPER 7.86. See [alpha usage and limits](docs/windows-alpha.md). This remains a review draft, not a completed P0–P5 build.
 
 ```sh
 npm ci
@@ -19,10 +19,10 @@ RPP conversion currently supports audio items, MIDI notes, step tempo changes, e
 
 ## Purpose
 
-- A small, well-shaped agent tool surface (about 12–15 tools, toolsets, describe/run) over REAPER, instead of hundreds of raw actions.
+- A small, well-shaped agent tool surface (about 12â€“15 tools, toolsets, describe/run) over REAPER, instead of hundreds of raw actions.
 - Two modes:
   - **Offline:** write `.RPP` projects from a backend-neutral song model and render headlessly with `reaper -renderproject`.
-  - **Live:** a small Lua bridge script in a running REAPER, with object-model get/set paths (for example `/tracks/2/fx/0/params/cutoff`), transport, and track, item, FX and MIDI operations.
+  - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Transport, live MIDI/item creation and FX parameter editing remain roadmap work.
 - Ports the music logic and thinking from [lmms-mcp](https://github.com/SarutobiSasuke8/lmms-mcp): genre templates, groove, arrangement, DJ personas, vocal chops, evaluation and taste/audition. LMMS remains the free fallback backend.
 
 ## REAPER licensing

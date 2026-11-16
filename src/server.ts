@@ -185,97 +185,150 @@ export async function call(
       string,
       unknown
     >;
-    const selected = service.selectMode(args.mode as Mode);
+    const selected = await service.selectMode(args.mode as Mode);
     if (definitions[name].writes && !service.allowWrites)
       throw new ToolError("writes_disabled", "Writes are disabled");
     let value: unknown;
-    switch (name) {
-      case "reaper_health":
-        value = await service.health();
-        break;
-      case "reaper_list_toolsets":
-        value = [
-          {
-            name: "editing",
-            enabled: service.enabled.has("editing"),
-            capabilities: capabilities.map((c) => c.name),
-          },
-        ];
-        break;
-      case "reaper_enable_toolset":
-        service.enabled.add(args.name as string);
-        value = { enabled: args.name };
-        break;
-      case "reaper_describe":
-        value = service.describe(args.subject as string);
-        break;
-      case "reaper_find_capability":
-        value = capabilities
-          .filter((c) =>
-            `${c.name} ${c.description}`
-              .toLowerCase()
-              .includes((args.query as string).toLowerCase()),
-          )
-          .map((c) => ({
-            name: c.name,
-            description: c.description,
-            toolset: c.toolset,
-          }));
-        break;
-      case "reaper_get":
-        value = service.get(args.path as string);
-        break;
-      case "reaper_list":
-        value = service.list(
-          args.path as string,
-          args.offset as number,
-          args.limit as number,
-        );
-        break;
-      case "reaper_set":
-        value = service.set(
+    const common = new Set([
+      "reaper_health",
+      "reaper_list_toolsets",
+      "reaper_enable_toolset",
+      "reaper_describe",
+      "reaper_find_capability",
+    ]);
+    if (selected === "live" && !common.has(name)) {
+      if (name === "reaper_get")
+        value = await service.live!.get(args.path as string);
+      else if (name === "reaper_list") {
+        const all = await service.live!.get(args.path as string);
+        if (!Array.isArray(all))
+          throw new ToolError("invalid_path", "List requires an array path");
+        value = {
+          total: all.length,
+          offset: args.offset,
+          items: all.slice(
+            args.offset as number,
+            (args.offset as number) + (args.limit as number),
+          ),
+        };
+      } else if (name === "reaper_set")
+        value = await service.live!.set(
           args.path as string,
           args.value,
           args.dryRun as boolean,
         );
-        break;
-      case "reaper_project":
-        value = await service.project(
-          args.operation as "new" | "open" | "save",
-          args.file as string | undefined,
-          args.song,
+      else
+        throw new ToolError(
+          "unsupported_live",
+          "Capability is not implemented live; select offline explicitly if appropriate",
         );
-        break;
-      case "reaper_import_midi":
-        value = await service.importMidi(
-          args.file as string,
-          args.position as number,
-        );
-        break;
-      case "reaper_import_audio":
-        value = await service.importAudio(
-          args.file as string,
-          args.track as number | undefined,
-          args.position as number,
-        );
-        break;
-      case "reaper_render":
-        value = await service.render(
-          args.target as "mix" | "stems" | "regions",
-          args.timeoutMs as number,
-        );
-        break;
-      case "reaper_analyze":
-        value = await service.analyze(args.file as string);
-        break;
-      case "reaper_run":
-        value = service.run(
-          args.capability as string,
-          args.args,
-          args.dryRun as boolean,
-        );
-        break;
-    }
+    } else
+      switch (name) {
+        case "reaper_health":
+          value = await service.health();
+          break;
+        case "reaper_list_toolsets":
+          value = [
+            {
+              name: "editing",
+              enabled: service.enabled.has("editing"),
+              capabilities: capabilities.map((c) => c.name),
+            },
+          ];
+          break;
+        case "reaper_enable_toolset":
+          service.enabled.add(args.name as string);
+          value = { enabled: args.name };
+          break;
+        case "reaper_describe":
+          value = {
+            supportedMode: "offline",
+            definition: service.describe(args.subject as string),
+            live: {
+              get: [
+                "/project",
+                "/project/tempo",
+                "/tracks",
+                "/tracks/{index}",
+                "/tracks/{index}/fx",
+              ],
+              set: [
+                "/tracks/{index}/name",
+                "/tracks/{index}/volume_db",
+                "/tracks/{index}/pan",
+                "/tracks/{index}/mute",
+              ],
+            },
+          };
+          break;
+        case "reaper_find_capability":
+          value = capabilities
+            .filter((c) =>
+              `${c.name} ${c.description}`
+                .toLowerCase()
+                .includes((args.query as string).toLowerCase()),
+            )
+            .map((c) => ({
+              name: c.name,
+              description: c.description,
+              toolset: c.toolset,
+              modes: ["offline"],
+            }));
+          break;
+        case "reaper_get":
+          value = service.get(args.path as string);
+          break;
+        case "reaper_list":
+          value = service.list(
+            args.path as string,
+            args.offset as number,
+            args.limit as number,
+          );
+          break;
+        case "reaper_set":
+          value = service.set(
+            args.path as string,
+            args.value,
+            args.dryRun as boolean,
+          );
+          break;
+        case "reaper_project":
+          value = await service.project(
+            args.operation as "new" | "open" | "save",
+            args.file as string | undefined,
+            args.song,
+          );
+          break;
+        case "reaper_import_midi":
+          value = await service.importMidi(
+            args.file as string,
+            args.position as number,
+          );
+          break;
+        case "reaper_import_audio":
+          value = await service.importAudio(
+            args.file as string,
+            args.track as number | undefined,
+            args.position as number,
+          );
+          break;
+        case "reaper_render":
+          value = await service.render(
+            args.target as "mix" | "stems" | "regions",
+            args.timeoutMs as number,
+          );
+          break;
+        case "reaper_analyze":
+          value = await service.analyze(args.file as string);
+          break;
+        case "reaper_run":
+          value = service.run(
+            args.capability as string,
+            args.args,
+            args.dryRun as boolean,
+          );
+          break;
+      }
     const result = { mode: selected, result: value };
     return {
       content: [{ type: "text", text: JSON.stringify(result) }],

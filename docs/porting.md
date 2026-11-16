@@ -1,5 +1,7 @@
 # Port manifest
 
+P3's authoritative checklist is the operator's ASV `2026-11-16 Music tooling inventory`, supplied by the 00:27 amendment to the build ticket. This table records implemented module provenance and pending groups; it does not replace that tool-by-tool inventory. Resolve source heads again when P3 starts. The inventory also includes Atelier instruments, DSP, drum machine, persona packs, styles, Mix Desk and CLIs. LMMS VST3 host/effect-chain machinery is replaced by REAPER-native FX chains, not ported as a second host. The `grok-*` source branches are attributed to grok-web.
+
 | Module | Source | State | Evidence / follow-up |
 |---|---|---|---|
 | audio.mjs | lmms-mcp, last-modifying SHA `364799c23f7c271d5b0de352935d759230c5ec39` | vendored unchanged | Used by analysis and render probe; source licence included |

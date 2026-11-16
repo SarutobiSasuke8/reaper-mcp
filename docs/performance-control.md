@@ -37,3 +37,8 @@ These are local templates depending on separately installed plugins, libraries a
 Run `scripts/performance-check.mjs` with `REAPER_MCP_RUN_PERFORMANCE_CHECK=true`, a disposable managed workspace, configured VPO catalogue and VST paths. It exercises actual stdio MCP dry runs, named keyswitch and CC/ramps readback, unknown-name rejection, controller-only insertion, save/reopen, native rendering and non-silent/unclipped audio. `REAPER_MCP_TEST_SERVER` can point to an installed package entry point.
 
 Editing existing MIDI events, pitch bend/program changes, verified BBC articulation maps, expressive tempo maps and full score-import semantics remain follow-ups.
+
+
+## Version reporting and reconnecting
+
+The MCP initialise handshake and health response read the installed package version from package.json. Earlier alpha.3 builds still reported alpha.2 because those two strings were hard-coded. An MCP process already running retains its loaded modules after an on-disk upgrade; reconnect the client to load the new server. Do not restart or terminate an unsaved REAPER project to refresh a stdio MCP client. A fresh client should report the package version and find `live_insert_performance` through capability discovery.

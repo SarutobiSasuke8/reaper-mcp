@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { ToolError } from "./errors.js";
+import { packageVersion } from "./version.js";
 import {
   instruments,
   musicCapabilities,
@@ -430,7 +431,7 @@ export async function call(
 export function createMcpServer(service: ReaperService): McpServer {
   const server = new McpServer({
     name: "reaper-mcp",
-    version: "0.1.0-alpha.2",
+    version: packageVersion,
   });
   // Serialize calls so async imports cannot overwrite edits made while reading files.
   let queue: Promise<unknown> = Promise.resolve();

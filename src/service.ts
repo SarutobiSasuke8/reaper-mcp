@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { packageVersion } from "./version.js";
 import { LiveBridge } from "./live.js";
 import MidiPackage from "@tonejs/midi";
 import path from "node:path";
@@ -319,7 +320,7 @@ export class ReaperService {
   }
   async health(): Promise<unknown> {
     return {
-      version: "0.1.0-alpha.2",
+      version: packageVersion,
       offline: true,
       live: this.live ? await this.live.available() : false,
       liveCapabilities: [

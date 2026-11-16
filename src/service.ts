@@ -24,46 +24,8 @@ export const pathSchema = z
   .min(1)
   .max(256)
   .regex(/^\/(?:project|tracks|markers)(?:\/(?:[a-zA-Z_]+|0|[1-9][0-9]*))*$/);
-export const capabilities = [
-  {
-    name: "add_track",
-    toolset: "editing",
-    description: "Append a track; volume in dB, pan -1..1",
-    schema: z.object({ track: trackSchema }).strict(),
-  },
-  {
-    name: "add_item",
-    toolset: "editing",
-    description: "Append MIDI or audio item; seconds and project PPQ ticks",
-    schema: z
-      .object({
-        track: z
-          .number()
-          .int()
-          .min(0)
-          .max(255)
-          .describe("zero-based track index"),
-        item: itemSchema,
-      })
-      .strict(),
-  },
-  {
-    name: "add_fx",
-    toolset: "editing",
-    description: "Append a JSFX reference; availability checked by REAPER",
-    schema: z
-      .object({
-        track: z
-          .number()
-          .int()
-          .min(0)
-          .max(255)
-          .describe("zero-based track index"),
-        fx: fxSchema,
-      })
-      .strict(),
-  },
-] as const;
+export { capabilities } from "./editing.js";
+import { capabilities, editSong } from "./editing.js";
 
 export class ReaperService {
   song: Song = songSchema.parse({});
@@ -368,24 +330,7 @@ export class ReaperService {
         "toolset_disabled",
         "Enable the editing toolset first",
       );
-    const candidate = structuredClone(this.song);
-    if (name === "add_track") {
-      const input = capabilities[0].schema.parse(args);
-      candidate.tracks.push(input.track);
-    }
-    if (name === "add_item") {
-      const input = capabilities[1].schema.parse(args);
-      if (!candidate.tracks[input.track])
-        throw new ToolError("not_found", "Track not found");
-      candidate.tracks[input.track]!.items.push(input.item);
-    }
-    if (name === "add_fx") {
-      const input = capabilities[2].schema.parse(args);
-      if (!candidate.tracks[input.track])
-        throw new ToolError("not_found", "Track not found");
-      candidate.tracks[input.track]!.fx.push(input.fx);
-    }
-    const validated = songSchema.parse(candidate);
+    const validated = editSong(this.song, name, args);
     if (!dryRun) this.song = validated;
     return { capability: name, dryRun, trackCount: validated.tracks.length };
   }

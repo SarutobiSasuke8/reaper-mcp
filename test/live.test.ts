@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile, unlink } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  writeFile,
+  unlink,
+  readdir,
+} from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { LiveBridge } from "../src/live.js";
@@ -9,12 +15,18 @@ import { Workspace } from "../src/workspace.js";
 
 async function fixture(reply: (parts: string[]) => unknown) {
   const root = await mkdtemp(path.join(os.tmpdir(), "live-test-"));
+  await writeFile(
+    path.join(root, "heartbeat.json"),
+    JSON.stringify({ protocol: 2 }),
+  );
   let busy = false;
   const timer = setInterval(async () => {
     if (busy) return;
     busy = true;
     try {
-      const file = path.join(root, "request.txt");
+      const name = (await readdir(root)).find((n) => n.endsWith(".request"));
+      if (!name) return;
+      const file = path.join(root, name);
       const raw = await readFile(file, "utf8");
       if (!raw) return;
       const parts = raw
@@ -40,7 +52,7 @@ async function fixture(reply: (parts: string[]) => unknown) {
 test("correlated requests serialize and live writes require a read and validate bounds", async () => {
   const f = await fixture((a) =>
     a[3] === "ping"
-      ? { protocol: 1 }
+      ? { protocol: 2 }
       : a[3] === "get"
         ? { project: "p", revision: 3, value: [] }
         : { project: "p", revision: 4 },
@@ -62,19 +74,19 @@ test("timeout is bounded; unresolved requests are never overwritten or replayed"
   const root = await mkdtemp(path.join(os.tmpdir(), "live-dead-"));
   const b = new LiveBridge(root, 50);
   await assert.rejects(b.request("ping"), /timed out/);
-  const original = await readFile(path.join(root, "request.txt"), "utf8");
-  await assert.rejects(b.request("ping"), /unresolved/);
+  await assert.rejects(b.request("ping"), /timed out/);
   assert.equal(
-    await readFile(path.join(root, "request.txt"), "utf8"),
-    original,
+    (await readdir(root)).filter((n) => n.endsWith(".request")).length,
+    0,
   );
 });
 test("auto mode fails closed after connection loss but explicit offline remains usable", async () => {
-  const f = await fixture(() => ({ protocol: 1 }));
+  const f = await fixture(() => ({ protocol: 2 }));
   const svc = new ReaperService(await Workspace.open(f.root), true, f.bridge);
   try {
     assert.equal(await svc.selectMode("auto"), "live");
     f.stop();
+    await unlink(path.join(f.root, "heartbeat.json"));
     await assert.rejects(svc.selectMode("auto"), /no offline fallback/);
     assert.equal(await svc.selectMode("offline"), "offline");
   } finally {

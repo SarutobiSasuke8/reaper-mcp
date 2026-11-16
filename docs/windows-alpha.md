@@ -1,6 +1,6 @@
 # Windows alpha usage
 
-Private review build; install REAPER separately. Tested with REAPER 7.86 and Node 20/22. No SWS, ReaPack, socket library or Python runtime is required by the bridge.
+Windows-only 0.1.0-alpha.1 release candidate; install REAPER separately. Tested with REAPER 7.86 and Node 20/22. No SWS, ReaPack, socket library or Python runtime is required by the bridge.
 
 ## Setup and connection
 
@@ -42,7 +42,7 @@ Use `mode: offline` for composition and rendering. Offline state is separate fro
 
 Use `mode: live` for live session work. First `reaper_get` `/tracks`, then `reaper_set` `/tracks/0/volume_db` with `value: -6` and `dryRun: true`. Repeat with false, inspect readback, and use REAPER Undo to restore it. Any project change since the read requires a fresh read. Native unrelated plugin and item state is untouched by these direct track-property edits.
 
-`auto` probes the configured bridge and initially chooses offline if unavailable. After a live connection, loss fails closed rather than editing offline state. Explicit offline remains available. Discovery lists offline editing capabilities and separately describes the supported live paths. Unsupported live operations fail explicitly. Fourteen top-level tools remain exposed with writes enabled.
+`auto` uses the heartbeat of the configured bridge. With managed startup enabled it fails clearly while REAPER is starting, rather than silently changing offline state. Without managed startup it initially chooses offline if unavailable. After a live connection, loss fails closed rather than editing offline state. Explicit offline remains available. Discovery lists offline editing capabilities and separately describes the supported live paths. Unsupported live operations fail explicitly. Set `REAPER_MCP_AUTOSTART=true` to start/reuse the isolated REAPER instance automatically while the MCP server runs. It checks again every 10 seconds after closure; it never kills a running session. Optional `REAPER_MCP_START_PROJECT` is a workspace-relative RPP opened on managed startup. Do not point it at a disposable temp file. Fourteen top-level tools remain exposed with writes enabled.
 
 ## Repeatable acceptance
 
@@ -60,7 +60,7 @@ The alpha script creates synthetic audio and a MIDI score, edits notes/gain, sav
 - `live_read_required`: read the live project before editing.
 - `live_rejected`: inspect state and read again; project/bridge identity or revision may have changed.
 - `live_timeout`: outcome is unknown. Inspect REAPER before retrying. The server never automatically replays a mutation.
-- `bridge_busy`: another client or an unresolved request owns the directory. Stop clients and the bridge first, inspect state, then archive the bridge folder and use a fresh one. Do not delete locks while another client is active.
+- Requests use unique atomic mailbox files. A timed-out request cannot occupy a shared slot or be replayed. Expired requests are rejected by Lua. Heartbeat expiry reports unavailable while a modal dialog blocks REAPER; after the dialog is resolved the connection recovers.
 - Render timeout: check the isolated profile for evaluation, missing plugin or other dialogs. Only the spawned render child is terminated.
 
 To remove: stop the MCP entry and isolated REAPER instance, remove the client entry, and archive the dedicated bridge/profile folders. Keep compositions and render outputs. No normal REAPER startup entry needs removing.
@@ -68,3 +68,9 @@ To remove: stop the MCP entry and isolated REAPER instance, remove the client en
 ## Still outside this alpha
 
 Live MIDI/item creation, live routing/FX parameter writes, automation, arbitrary complex RPP conversion, Linux verification, cancellation tooling and the full portable music inventory remain incomplete. No release, package publication or merge has been performed.
+
+## Codex registration and release checks
+
+Install the packed tarball to a stable local prefix with `npm install --prefix <prefix> <tarball> --ignore-scripts`. Register with `codex mcp add reaper --env REAPER_MCP_WORKSPACE=<workspace> --env REAPER_MCP_BRIDGE_DIR=<workspace>/reaper-mcp-bridge --env REAPER_MCP_ALLOW_WRITES=true --env REAPER_MCP_AUTOSTART=true -- node <prefix>/node_modules/@sarutobi-sasuke/reaper-mcp/dist/src/stdio.js`. Check with `codex mcp get reaper --json`. Existing chats may need a new session or app restart to load the changed tool configuration; registration alone does not prove tools were hot-loaded.
+
+`npm pack` builds the distribution. `npm publish` runs the check suite, but publication is a separate operator action. This alpha declares Windows support only. Installed package acceptance scripts are included; the development test suite requires the repository. `scripts/lifecycle-check.mjs`, with `REAPER_MCP_RUN_LIVE_CHECK=true`, launches disposable native sessions and verifies project-switch/restart guards, expired-request recovery and multi-client stale edits. Evaluation prompts may still require normal interaction; no licensing state is changed.

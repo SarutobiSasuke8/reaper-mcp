@@ -20,8 +20,19 @@ if (!root || !path.isAbsolute(root)) {
   );
   process.exit(1);
 }
+const workspace = await Workspace.open(root);
+if (process.env.REAPER_MCP_AUTOSTART === "true") {
+  process.env.REAPER_MCP_BRIDGE_DIR ??= path.join(root, "reaper-mcp-bridge");
+  const { ensureRunning } = await import("./startup.js");
+  const start = () =>
+    ensureRunning(workspace).catch((e) =>
+      process.stderr.write(`REAPER startup: ${e.message}\n`),
+    );
+  void start();
+  setInterval(() => void start(), 10000).unref();
+}
 const service = new ReaperService(
-  await Workspace.open(root),
+  workspace,
   process.env.REAPER_MCP_ALLOW_WRITES === "true",
 );
 const server = createMcpServer(service);

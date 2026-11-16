@@ -2,11 +2,11 @@
 
 An agent-first MCP server for [REAPER](https://www.reaper.fm/), built by Alexei Udall.
 
-**Status: pre-alpha. Private repository.** Nothing here is released yet.
+**Status: Windows alpha release candidate, 0.1.0-alpha.1.** Not yet published.
 
 The initial offline checkpoint now has a typed song model, RPP subset import/export, MIDI/WAV import, object-path editing, fourteen MCP tools and audio measurements. It uses the house MCP template's contracts and protocol-test patterns on the existing LMMS SDK stack.
 
-**Windows alpha candidate:** fresh-profile rendering and native live track inspection/editing have passed on REAPER 7.86. See [alpha usage and limits](docs/windows-alpha.md). This remains a review draft, not a completed P0–P5 build.
+**Windows alpha candidate:** fresh-profile rendering and native live track inspection/editing have passed on REAPER 7.86. See [alpha usage and limits](docs/windows-alpha.md). This remains a review draft, not a completed P0â€“P5 build.
 
 ```sh
 npm ci
@@ -19,7 +19,7 @@ RPP conversion currently supports audio items, MIDI notes, step tempo changes, e
 
 ## Purpose
 
-- A small, well-shaped agent tool surface (about 12â€“15 tools, toolsets, describe/run) over REAPER, instead of hundreds of raw actions.
+- A small, well-shaped agent tool surface (about 12Ã¢â‚¬â€œ15 tools, toolsets, describe/run) over REAPER, instead of hundreds of raw actions.
 - Two modes:
   - **Offline:** write `.RPP` projects from a backend-neutral song model and render headlessly with `reaper -renderproject`.
   - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Transport, live MIDI/item creation and FX parameter editing remain roadmap work.

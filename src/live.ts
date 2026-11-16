@@ -10,6 +10,7 @@ import {
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { heartbeat } from "./startup.js";
 import { ToolError } from "./errors.js";
 
 const replySchema = z.object({
@@ -23,7 +24,7 @@ export class LiveBridge {
   private context?: { project: string; revision: number };
   constructor(
     public directory: string,
-    public timeoutMs = 2000,
+    public timeoutMs = 10000,
   ) {
     if (!path.isAbsolute(directory))
       throw new ToolError("bridge_config", "Bridge directory must be absolute");
@@ -40,36 +41,18 @@ export class LiveBridge {
         "Bridge directory does not exist",
       );
     });
-    // Cross-process lock. A stale lock is deliberately not stolen: outcome may be unknown.
-    let lock;
-    try {
-      lock = await open(path.join(root, "client.lock"), "wx");
-    } catch {
-      throw new ToolError(
-        "bridge_busy",
-        "Another client owns the bridge; inspect stale locks only after stopping clients",
-      );
-    }
     const id = randomUUID(),
-      request = path.join(root, "request.txt"),
+      request = path.join(root, `${id}.request`),
       response = path.join(root, `${id}.json`),
       temp = path.join(root, `${id}.tmp`);
     try {
       const deadline = Date.now() + this.timeoutMs;
-      const parts = ["1", id, String(deadline), operation, ...fields];
+      const parts = ["2", id, String(deadline), operation, ...fields];
       const body =
         parts.map((s) => Buffer.from(s, "utf8").toString("hex")).join("\n") +
         "\n";
       if (Buffer.byteLength(body) > 16384)
         throw new ToolError("limit", "Live request exceeds 16 KB");
-      // Refuse an unresolved request, never replace or replay it.
-      const reservation = await open(request, "wx").catch(() => {
-        throw new ToolError(
-          "bridge_busy",
-          "A previous request remains unresolved",
-        );
-      });
-      await reservation.close();
       await writeFile(temp, body, { flag: "wx" });
       await rename(temp, request);
       while (Date.now() < deadline) {
@@ -107,17 +90,12 @@ export class LiveBridge {
       // The bridge owns request removal. Removing it here races an in-flight mutation.
       await unlink(temp).catch(() => {});
       await unlink(response).catch(() => {});
-      await lock.close();
-      await unlink(path.join(root, "client.lock")).catch(() => {});
+      // A queued request is safe to remove: if already claimed, its reply still cannot be replayed.
+      await unlink(request).catch(() => {});
     }
   }
   async available(): Promise<boolean> {
-    try {
-      const p = await this.request("ping");
-      return p.protocol === 1;
-    } catch {
-      return false;
-    }
+    return heartbeat(this.directory);
   }
   async get(objectPath: string): Promise<unknown> {
     const snapshot = await this.request("get", [objectPath]);

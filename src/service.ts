@@ -50,10 +50,14 @@ export class ReaperService {
       this.hadLive = true;
       return "live";
     }
-    if (mode === "live" || this.hadLive)
+    if (
+      mode === "live" ||
+      this.hadLive ||
+      process.env.REAPER_MCP_AUTOSTART === "true"
+    )
       throw new ToolError(
         "live_unavailable",
-        "Live bridge unavailable; no offline fallback after a live connection. Use explicit offline mode for offline work",
+        "Live bridge unavailable or starting; no offline fallback after a live connection or during managed startup. Inspect REAPER dialogs or retry; use explicit offline mode for offline work",
       );
     return "offline";
   }
@@ -312,7 +316,7 @@ export class ReaperService {
   }
   async health(): Promise<unknown> {
     return {
-      version: "0.1.0",
+      version: "0.1.0-alpha.1",
       offline: true,
       live: this.live ? await this.live.available() : false,
       liveCapabilities: [

@@ -1,4 +1,4 @@
--- REAPER MCP protocol 1. Native APIs only; no sockets, eval or extensions.
+-- REAPER MCP protocol 2. Native APIs only; no sockets, eval or extensions.
 -- Set REAPER_MCP_BRIDGE_DIR before launching REAPER, or use the resource subfolder.
 local root = os.getenv("REAPER_MCP_BRIDGE_DIR") or (reaper.GetResourcePath() .. "/reaper-mcp-bridge")
 reaper.RecursiveCreateDirectory(root, 0)
@@ -24,9 +24,14 @@ local function atomic(name, content)
   local f=assert(io.open(root.."/"..name..".tmp","wb")); f:write(content); f:close()
   assert(os.rename(root.."/"..name..".tmp",root.."/"..name))
 end
+local last_project, last_revision, epoch = nil, nil, 0
 local function current()
-  local p = reaper.EnumProjects(-1, "")
-  return p, session .. ":" .. tostring(p), reaper.GetProjectStateChangeCount(p)
+  local p,filename = reaper.EnumProjects(-1, "")
+  local key=tostring(p)..":"..filename..":"..reaper.GetTrackGUID(reaper.GetMasterTrack(p))
+  local revision=reaper.GetProjectStateChangeCount(p)
+  if key~=last_project or (last_revision and revision<last_revision) then epoch=epoch+1 end
+  last_project,last_revision=key,revision
+  return p, session..":"..epoch..":"..key, revision
 end
 local function track_view(t)
   local _,name=reaper.GetTrackName(t)
@@ -61,10 +66,10 @@ local function get_value(p, object_path)
   return view
 end
 local function execute(a)
-  assert(a[1]=="1","Unsupported protocol")
+  assert(a[1]=="2","Unsupported protocol")
   assert(tonumber(a[3]) and os.time()*1000 < tonumber(a[3])-1000,"Request expired")
   local p,identity,revision=current()
-  if a[4]=="ping" then return {protocol=1,project=identity,revision=revision,writes=os.getenv("REAPER_MCP_ALLOW_WRITES")=="true"} end
+  if a[4]=="ping" then return {protocol=2,project=identity,revision=revision,writes=os.getenv("REAPER_MCP_ALLOW_WRITES")=="true"} end
   if a[4]=="get" then return {project=identity,revision=revision,value=get_value(p,a[5])} end
   assert(a[4]=="set","Unsupported operation")
   assert(os.getenv("REAPER_MCP_ALLOW_WRITES")=="true","Bridge writes disabled")
@@ -103,25 +108,51 @@ if existing and reaper.time_precise() - existing < 3 then
   return
 end
 reaper.atexit(function() reaper.DeleteExtState("REAPER_MCP_LEASE", lease_key, false) end)
+local last_heartbeat = 0
 local function loop()
+  current()
   reaper.SetExtState("REAPER_MCP_LEASE", lease_key, tostring(reaper.time_precise()), false)
-  local f=io.open(root.."/request.txt","rb")
-  if f then
-    local raw=f:read(16385); f:close()
-    -- Empty reservation is not a published request. Node renames the full file atomically.
-    if #raw>0 then
-      os.remove(root.."/request.txt")
-      local a={}; local valid=#raw<=16384
-      for line in raw:gmatch("([^\n]*)\n") do
-        if #line%2~=0 or line:find("[^0-9a-f]") then valid=false end
-        a[#a+1]=line:gsub("..",function(h) return string.char(tonumber(h,16) or 0) end)
-      end
-      if valid and a[2] and a[2]:match("^[0-9a-f%-]+$") and #a[2]==36 then
-        local ok,result=pcall(execute,a)
-        atomic(a[2]..".json",json({id=a[2],ok=ok,result=ok and result or nil,error=not ok and tostring(result):sub(1,300) or nil}))
-      end
-    end
+  if reaper.time_precise() - last_heartbeat > 1 then
+    -- Windows Lua rename cannot replace an existing file. Readers tolerate the short gap.
+    os.remove(root.."/heartbeat.json")
+    atomic("heartbeat.json", json({protocol=2,session=session,time=os.time(),writes=os.getenv("REAPER_MCP_ALLOW_WRITES")=="true"}))
+    last_heartbeat=reaper.time_precise()
   end
-  reaper.defer(loop)
+  -- At most one bounded operation per defer tick. Unique files avoid a poisoned shared slot.
+  reaper.EnumerateFiles(root,-1)
+  local index=0
+  while index<512 do
+    local name=reaper.EnumerateFiles(root,index)
+    if not name then break end
+    if name:match("^[0-9a-f%-]+%.request$") then
+      local claimed=root.."/"..name..".working"
+      if os.rename(root.."/"..name,claimed) then
+        local f=io.open(claimed,"rb")
+        local raw=f and f:read(16385) or ""
+        if f then f:close() end
+        os.remove(claimed)
+        local a={};local valid=#raw>0 and #raw<=16384
+        for line in raw:gmatch("([^\n]*)\n") do
+          if #line%2~=0 or line:find("[^0-9a-f]") then valid=false end
+          a[#a+1]=line:gsub("..",function(h) return string.char(tonumber(h,16) or 0) end)
+        end
+        if valid and a[2] and #a[2]==36 and name==a[2]..".request" then
+          local ok,result=pcall(execute,a)
+          if os.time()*1000 < tonumber(a[3]) then atomic(a[2]..".json",json({id=a[2],ok=ok,result=ok and result or nil,error=not ok and tostring(result):sub(1,300) or nil})) end
+        end
+      end
+      break
+    end
+    index=index+1
+  end
 end
-reaper.defer(loop)
+local last_error
+local function guarded_loop()
+  local ok,err=pcall(loop)
+  if not ok and tostring(err)~=last_error then
+    last_error=tostring(err)
+    reaper.ShowConsoleMsg("REAPER MCP retryable I/O error: "..last_error.."\n")
+  end
+  reaper.defer(guarded_loop)
+end
+reaper.defer(guarded_loop)

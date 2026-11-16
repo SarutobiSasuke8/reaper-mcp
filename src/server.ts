@@ -185,7 +185,12 @@ export async function call(
       string,
       unknown
     >;
-    const selected = await service.selectMode(args.mode as Mode);
+    const selected =
+      name === "reaper_health"
+        ? (await service.live?.available())
+          ? "live"
+          : "offline"
+        : await service.selectMode(args.mode as Mode);
     if (definitions[name].writes && !service.allowWrites)
       throw new ToolError("writes_disabled", "Writes are disabled");
     let value: unknown;
@@ -362,7 +367,10 @@ export async function call(
   }
 }
 export function createMcpServer(service: ReaperService): McpServer {
-  const server = new McpServer({ name: "reaper-mcp", version: "0.1.0" });
+  const server = new McpServer({
+    name: "reaper-mcp",
+    version: "0.1.0-alpha.1",
+  });
   // Serialize calls so async imports cannot overwrite edits made while reading files.
   let queue: Promise<unknown> = Promise.resolve();
   for (const [name, contract] of Object.entries(TOOL_CONTRACTS)) {

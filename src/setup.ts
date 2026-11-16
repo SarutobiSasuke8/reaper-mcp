@@ -54,39 +54,12 @@ export async function setup(args: string[]): Promise<void> {
     if (!executable)
       throw Error("Install REAPER separately or set REAPER_PATH");
     const projectIndex = args.indexOf("--project");
-    const project =
-      projectIndex >= 0
-        ? await workspace.resolve(args[projectIndex + 1] ?? "")
-        : undefined;
-    const child = spawn(
-      executable,
-      [
-        "-newinst",
-        "-nosplash",
-        "-cfgfile",
-        ini,
-        ...(project ? [project] : []),
-        fileURLToPath(new URL("../../bridge/reaper-mcp.lua", import.meta.url)),
-      ],
-      {
-        env: { ...process.env, REAPER_MCP_BRIDGE_DIR: bridgePath },
-        stdio: "ignore",
-        detached: true,
-        windowsHide: false,
-      },
-    );
-    await new Promise<void>((resolve, reject) => {
-      child.once("spawn", resolve);
-      child.once("error", reject);
-    });
-    child.unref();
+    if (projectIndex >= 0)
+      process.env.REAPER_MCP_START_PROJECT = args[projectIndex + 1];
     console.log(
-      JSON.stringify({
-        pid: child.pid,
-        profile,
-        bridgePath,
-        note: "Visible isolated REAPER. Evaluation prompts require normal interaction. Run --doctor after startup.",
-      }),
+      JSON.stringify(
+        await (await import("./startup.js")).ensureRunning(workspace),
+      ),
     );
   } else
     console.log(

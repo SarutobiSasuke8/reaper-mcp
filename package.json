@@ -1,7 +1,7 @@
 {
   "name": "@sarutobi-sasuke/reaper-mcp",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.0-alpha.1",
+  "private": false,
   "description": "A compact MCP surface for offline and live REAPER projects",
   "type": "module",
   "license": "MIT",
@@ -23,7 +23,11 @@
     "bridge",
     "README.md",
     "THIRD_PARTY.md",
-    "LICENSE"
+    "LICENSE",
+    "scripts/alpha-check.mjs",
+    "scripts/live-check.mjs",
+    "scripts/reaper-headless-check.mjs",
+    "scripts/lifecycle-check.mjs"
   ],
   "scripts": {
     "build": "tsc",
@@ -31,7 +35,9 @@
     "test": "npm run build && node scripts/run-tests.mjs",
     "check": "npm run typecheck && npm test",
     "start": "node dist/src/stdio.js",
-    "headless:check": "npm run build && node scripts/reaper-headless-check.mjs"
+    "headless:check": "npm run build && node scripts/reaper-headless-check.mjs",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
@@ -41,5 +47,12 @@
   "devDependencies": {
     "@types/node": "22.19.15",
     "typescript": "5.9.3"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SarutobiSasuke8/reaper-mcp.git"
+  },
+  "os": [
+    "win32"
+  ]
 }

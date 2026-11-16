@@ -82,3 +82,10 @@ Version 0.1.0-alpha.1 is prepared as Windows-only. Node 20/22 suites: 24 pass, 1
 Implemented live track creation, catalogue instrument insertion, beat-based MIDI clips, note readback, native save/open and isolated mix render. Four-instrument real MCP proof passed. The surface remains 14 tools. See [live music](docs/live-music.md) for limits and [all 25 requested instrument/workflow additions](docs/instrument-roadmap.md) for staged priorities; BBC Discover is first.
 
 Remaining: live MIDI CC/pitch bend and editing existing clips, preset browsing/replacement, live stems/regions, BBC/Ample installation and instrument-specific acceptance.
+
+
+## 2026-11-16: Windows alpha.4 release readiness
+
+PRs #1-#4 merged; stable Codex installation upgraded and verified live with 14 tools. Fresh installed-package composition/render/reconnect/restart acceptance and system-output probe passed without Computer Use. Node 20/22 Windows CI passed. Draft prerelease and checksum prepared; public visibility and npm authentication/publication remain operator actions. See [[RELEASE_CHECKS.md]] and [release evidence](docs/release-alpha-4.md).
+
+The alpha includes MIDI CC ramps and named articulation insertion. Remaining engineering scope: editing existing notes/controllers, transport, live stems/regions, preset replacement, general automation, Linux, independent-machine native acceptance and broader portable music inventory. Paid libraries and vocal synthesis are optional integrations, not release dependencies.

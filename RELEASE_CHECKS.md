@@ -1,3 +1,22 @@
+# Windows alpha.4 release readiness
+
+Current checkpoint, 2026-11-16. Supersedes the historical checkpoints below.
+
+- PRs #1, #2, #3 and #4 merged. Runtime/package version: 0.1.0-alpha.4.
+- Windows GitHub CI passed on Node 20 and 22; local typecheck and 31 tests passed, with 1 optional native fixture skipped.
+- Separate native checks passed: offline mix/stems/regions; bridge lifecycle/concurrent-client guards; fresh installed-package instrument/MIDI/CC/articulation creation, save, audible render, client reconnect, managed restart and reopen.
+- Final installed native render: 4 seconds, 44.1 kHz stereo, -26.99 dBFS peak, zero clipped samples, 38.5-second render worker.
+- New system-audio profile probe passed: WaveOut / Microsoft Sound Mapper opened. Background dummy mode is explicit; render workers remain silent. Existing profiles are preserved.
+- Stable local installation upgraded. A fresh client through the registered Codex transport reports alpha.4, 14 tools and live availability.
+- Runtime dependency audit: zero reported vulnerabilities.
+- Draft prerelease with tarball and SHA-256 checksum prepared. Repository remains private; npm identity check returns 401. Public publication has NOT occurred.
+
+See [release evidence and limits](docs/release-alpha-4.md), [installation](docs/install-windows.md) and [draft releases](https://github.com/SarutobiSasuke8/reaper-mcp/releases).
+
+Remaining distribution actions: authorise public repository visibility if desired, authenticate an npm account with scope access, publish the reviewed tarball with the alpha dist-tag, and publish the prerelease. These are distinct from technical alpha readiness. Native speaker capture and independent-machine REAPER acceptance are not claimed.
+
+## Historical checkpoints
+
 # 0.1.0-alpha.1 Windows release checks
 
 Observed 16 November 2026. Technical candidate for an explicitly labelled Windows alpha, not stable or full parity. Publication, repository visibility, tagging and merging are separate operator actions and have not occurred.

@@ -59,7 +59,7 @@ async function launch() {
         REAPER_MCP_ALLOW_WRITES: "true",
       },
       stdio: "ignore",
-      windowsHide: false,
+      windowsHide: true,
     },
   );
   const until = Date.now() + 90000;

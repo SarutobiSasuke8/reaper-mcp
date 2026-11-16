@@ -6,6 +6,17 @@ import os from "node:os";
 import { heartbeat, ensureRunning } from "../src/startup.js";
 import { LiveBridge } from "../src/live.js";
 import { Workspace } from "../src/workspace.js";
+import { liveIni } from "../src/profile.js";
+import { isolatedIni } from "../src/render.js";
+test("new live profiles have system output; dummy mode is explicit; render workers stay silent", () => {
+  assert.match(liveIni("win32", "system"), /mode=2/);
+  assert.match(liveIni("win32", "system"), /waveout_nch_in=0/);
+  assert.match(liveIni("win32", "dummy"), /mode=4/);
+  assert.match(liveIni("win32", "system", "C:/VST3"), /vstpath64=C:\/VST3/);
+  assert.throws(() => liveIni("win32", "bogus"), /AUDIO_MODE/);
+  assert.throws(() => liveIni("win32", "system", "C:/VST3\nmode=4"), /Invalid/);
+  assert.match(isolatedIni("win32"), /mode=4/);
+});
 test("health checks never leave a request behind when disconnected; stale heartbeat is unavailable", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "heartbeat-test-"));
   const b = new LiveBridge(root);

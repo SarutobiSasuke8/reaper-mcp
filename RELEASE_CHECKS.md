@@ -27,3 +27,13 @@ Observed 16 November 2026. Technical candidate for an explicitly labelled Window
 ## Operator publication steps
 
 Review PR #1 and stacked PR #2, merge approved changes, build from the reviewed commit, rerun `npm run check`, run the native checks on Windows, inspect `npm pack --dry-run`, and verify npm scope access before uploading the selected tarball with an alpha dist-tag. No publish credential is stored by this build. Do not publish it as a stable release or advertise unsupported features.
+
+## 2026-11-16 native composition release check (alpha.2)
+
+- 27 unit/protocol tests passed on Node 22.22.1; 1 opt-in legacy render fixture skipped.
+- Real MCP music check passed against both source and installed package: piano/bass/drums/Surge creation, dry runs, MIDI readback, save/reopen and native render. Installed run also checks duplicate instrument rejection.
+- Installed output: 11.6 seconds, 44.1 kHz stereo, -22.98 dBFS sample peak, zero clipped samples; every instrument section non-silent. LUFS/true peak remain analyser estimates.
+- Exact enabled Codex registration passed: installed transport, 14 tools, live project, MIDI schema and piano catalogue entry. Tool timeout set to 240 seconds for native render jobs.
+- Package 0.1.0-alpha.2: 48 files, 58.4 kB; SHA1 3fc84fc65b52b0890630edef4b51a22fa8d5db91. Production audit: 0 vulnerabilities.
+- PR #3 is stacked on PR #2. No merge, npm publish, tag or repository visibility change. Prior npm authentication blocker remains.
+- New pass tested on Windows only. Current chat has no hot-loaded REAPER tool namespace; actual MCP stdio client execution was verified. New Codex chat/app refresh may be needed for tool discovery.

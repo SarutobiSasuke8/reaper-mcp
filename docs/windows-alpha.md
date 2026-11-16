@@ -1,6 +1,6 @@
 # Windows alpha usage
 
-Windows-only 0.1.0-alpha.1 release candidate; install REAPER separately. Tested with REAPER 7.86 and Node 20/22. No SWS, ReaPack, socket library or Python runtime is required by the bridge.
+Windows-only 0.1.0-alpha.4 release candidate; install REAPER separately. Tested with REAPER 7.86 and Node 20/22. No SWS, ReaPack, socket library or Python runtime is required by the bridge.
 
 ## Setup and connection
 
@@ -15,7 +15,7 @@ $env:REAPER_MCP_BRIDGE_DIR = "$env:REAPER_MCP_WORKSPACE/reaper-mcp-bridge"
 node dist/src/stdio.js --doctor
 ```
 
-Omit `--project alpha.rpp` when starting an empty session, or substitute an existing workspace-relative RPP. Setup prints a client JSON entry. Launch opens a visible isolated REAPER profile and loads the bridge. It does not install a startup script or alter normal preferences. Complete any normal evaluation prompt, then run doctor. Dummy audio permits offline rendering; choose a real output device in this isolated profile if you want to hear playback. Never run two REAPER instances against the same bridge directory.
+Omit `--project alpha.rpp` when starting an empty session, or substitute an existing workspace-relative RPP. Setup prints a client JSON entry. Launch starts a separate managed REAPER profile and loads the bridge, requesting hidden windows by default. It does not install a startup script or alter normal preferences. Complete any normal evaluation prompt, then run doctor. New live profiles default to Windows WaveOut / Microsoft Sound Mapper with no recording inputs. For unattended composition set REAPER_MCP_AUDIO_MODE=dummy before first launch; rendering still produces audio files. Render workers always use dummy audio. Set REAPER_MCP_SHOW_WINDOW=true only when interactive setup is needed. Existing profiles are never rewritten; changing these settings does not reconfigure an already-running session. Never run two REAPER instances against the same bridge directory.
 
 For Codex, use this equivalent entry in its MCP configuration, substituting absolute paths. Keep the task checkout until its PR is merged; afterwards point to a built installation, not a removed worktree.
 
@@ -36,9 +36,9 @@ Writes must be enabled in both the MCP process and REAPER's inherited environmen
 | Mode | Supported now |
 | --- | --- |
 | offline | New/open/save song JSON and supported RPP subset; WAV/MIDI import; notes, tracks, items, sends, JSFX references, tempo map, regions; transactional edits and batches; render mix/stems/regions; WAV analysis |
-| live | Read project summary/tempo, tracks, track fields and FX inventory; set track name, volume_db, pan and mute; dryRun; native one-step undo |
+| live | Project/track/FX/plugin/instrument inspection; track name/gain/pan/mute edits; track and configured instrument insertion; MIDI notes, CC ramps and named keyswitch articulations; native save/open/new and full mix render; dryRun and guarded undoable edits |
 
-Use `mode: offline` for composition and rendering. Offline state is separate from the open live project: there is no implicit synchronisation. Open the saved RPP in REAPER to inspect/play it. MIDI needs an instrument to sound; importing notes alone does not install one.
+Use `mode: offline` for model-based composition and rendering, or `mode: live` for native instrument/MIDI composition and mix rendering. Offline state is separate from the open live project: there is no implicit synchronisation. Open the saved RPP in REAPER to inspect/play it. MIDI needs an instrument to sound; importing notes alone does not install one.
 
 Use `mode: live` for live session work. First `reaper_get` `/tracks`, then `reaper_set` `/tracks/0/volume_db` with `value: -6` and `dryRun: true`. Repeat with false, inspect readback, and use REAPER Undo to restore it. Any project change since the read requires a fresh read. Native unrelated plugin and item state is untouched by these direct track-property edits.
 
@@ -67,10 +67,14 @@ To remove: stop the MCP entry and isolated REAPER instance, remove the client en
 
 ## Still outside this alpha
 
-Live MIDI/item creation, live routing/FX parameter writes, automation, arbitrary complex RPP conversion, Linux verification, cancellation tooling and the full portable music inventory remain incomplete. No release, package publication or merge has been performed.
+Existing-note/CC editing, instrument replacement, live routing/FX parameter writes, live stems/regions, transport control, general automation, arbitrary complex RPP conversion, Linux verification and cancellation tooling remain outside this alpha. Native MIDI creation and expressive performance insertion are included. No proprietary instruments or sample libraries are bundled.
 
 ## Codex registration and release checks
 
 Install the packed tarball to a stable local prefix with `npm install --prefix <prefix> <tarball> --ignore-scripts`. Register with `codex mcp add reaper --env REAPER_MCP_WORKSPACE=<workspace> --env REAPER_MCP_BRIDGE_DIR=<workspace>/reaper-mcp-bridge --env REAPER_MCP_ALLOW_WRITES=true --env REAPER_MCP_AUTOSTART=true -- node <prefix>/node_modules/@sarutobi-sasuke/reaper-mcp/dist/src/stdio.js`. Check with `codex mcp get reaper --json`. Existing chats may need a new session or app restart to load the changed tool configuration; registration alone does not prove tools were hot-loaded.
 
 `npm pack` builds the distribution. `npm publish` runs the check suite, but publication is a separate operator action. This alpha declares Windows support only. Installed package acceptance scripts are included; the development test suite requires the repository. `scripts/lifecycle-check.mjs`, with `REAPER_MCP_RUN_LIVE_CHECK=true`, launches disposable native sessions and verifies project-switch/restart guards, expired-request recovery and multi-client stale edits. Evaluation prompts may still require normal interaction; no licensing state is changed.
+
+## Public-alpha acceptance
+
+Run `scripts/windows-release-check.mjs` from an installed tarball with `REAPER_MCP_RUN_RELEASE_CHECK=true`. It creates a disposable workspace, uses REAPER's bundled ReaSynth, checks MIDI/CC/keyswitch readback, saves and renders audible audio, reconnects the MCP client, then restarts only its own test REAPER process and reopens the saved project. No personal catalogue or purchased library is needed. Evaluation/plugin prompts remain possible; no trial state is modified or bypassed. See [alpha.4 evidence](release-alpha-4.md).

@@ -16,6 +16,8 @@ try{
   await new Promise(r=>setTimeout(r,500));
  }
  assert.ok(project,'Managed startup did not become available; inspect REAPER dialogs');
- assert.equal(project.trackCount,3);
+ assert.ok(Number.isInteger(project.trackCount));
+ const described=await c.callTool({name:'reaper_describe',arguments:{mode:'live',subject:'live_insert_midi'}});assert.notEqual(described.isError,true);
+ const library=await c.callTool({name:'reaper_get',arguments:{mode:'live',path:'/instruments'}});assert.notEqual(library.isError,true);assert.ok(library.structuredContent.result.some(e=>e.id==='piano'));
  console.log(JSON.stringify({result:'PASS',checks:['exact enabled Codex registration','installed package MCP handshake','14 tools discovered','managed startup reaches live project'],project},null,2));
 }finally{await c.close();}

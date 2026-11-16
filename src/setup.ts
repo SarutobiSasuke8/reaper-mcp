@@ -3,7 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { Workspace } from "./workspace.js";
-import { locateReaper, isolatedIni } from "./render.js";
+import { locateReaper } from "./render.js";
+import { liveIni } from "./profile.js";
 import { LiveBridge } from "./live.js";
 
 export async function setup(args: string[]): Promise<void> {
@@ -46,7 +47,7 @@ export async function setup(args: string[]): Promise<void> {
   await mkdir(profile, { recursive: true });
   const ini = path.join(profile, "reaper.ini");
   try {
-    await writeFile(ini, isolatedIni(), { flag: "wx" });
+    await writeFile(ini, liveIni(), { flag: "wx" });
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
   }

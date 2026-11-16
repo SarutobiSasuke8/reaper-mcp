@@ -29,12 +29,22 @@ export class LiveBridge {
     if (!path.isAbsolute(directory))
       throw new ToolError("bridge_config", "Bridge directory must be absolute");
   }
-  request(operation: string, fields: string[] = []): Promise<any> {
-    const pending = this.queue.then(() => this.exchange(operation, fields));
+  request(
+    operation: string,
+    fields: string[] = [],
+    timeoutMs = this.timeoutMs,
+  ): Promise<any> {
+    const pending = this.queue.then(() =>
+      this.exchange(operation, fields, timeoutMs),
+    );
     this.queue = pending.catch(() => {});
     return pending;
   }
-  private async exchange(operation: string, fields: string[]): Promise<any> {
+  private async exchange(
+    operation: string,
+    fields: string[],
+    timeoutMs: number,
+  ): Promise<any> {
     const root = await realpath(this.directory).catch(() => {
       throw new ToolError(
         "live_unavailable",
@@ -46,7 +56,7 @@ export class LiveBridge {
       response = path.join(root, `${id}.json`),
       temp = path.join(root, `${id}.tmp`);
     try {
-      const deadline = Date.now() + this.timeoutMs;
+      const deadline = Date.now() + timeoutMs;
       const parts = ["2", id, String(deadline), operation, ...fields];
       const body =
         parts.map((s) => Buffer.from(s, "utf8").toString("hex")).join("\n") +
@@ -101,6 +111,30 @@ export class LiveBridge {
     const snapshot = await this.request("get", [objectPath]);
     this.context = { project: snapshot.project, revision: snapshot.revision };
     return snapshot.value;
+  }
+  async mutate(
+    action: string,
+    fields: string[],
+    dryRun: boolean,
+  ): Promise<any> {
+    if (!this.context)
+      throw new ToolError(
+        "live_read_required",
+        "Read the live project before editing it",
+      );
+    const result = await this.request(
+      "music",
+      [
+        this.context.project,
+        String(this.context.revision),
+        action,
+        dryRun ? "1" : "0",
+        ...fields,
+      ],
+      60000,
+    );
+    this.context = { project: result.project, revision: result.revision };
+    return result;
   }
   async set(
     objectPath: string,

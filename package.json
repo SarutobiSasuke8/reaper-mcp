@@ -1,6 +1,6 @@
 {
   "name": "@sarutobi-sasuke/reaper-mcp",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "private": false,
   "description": "A compact MCP surface for offline and live REAPER projects",
   "type": "module",
@@ -28,7 +28,8 @@
     "scripts/live-check.mjs",
     "scripts/reaper-headless-check.mjs",
     "scripts/lifecycle-check.mjs",
-    "scripts/music-check.mjs"
+    "scripts/music-check.mjs",
+    "scripts/performance-check.mjs"
   ],
   "scripts": {
     "build": "tsc",

@@ -41,4 +41,7 @@ Native operations have a 60-second bridge deadline for cold plugin/project loads
 
 `scripts/music-check.mjs` uses actual MCP stdio calls, with a disposable workspace and configured piano/bass/drums/surge IDs. It checks dry-run immutability, track/FX insertion, MIDI readback, duplicate instrument rejection, native save/reopen, isolated rendering and non-silent audio in each instrument's section. Opt in with `REAPER_MCP_RUN_MUSIC_CHECK=true` and set workspace, catalogue and VST paths. Test results are written to `music-proof.json` in that workspace.
 
-General CC/program/pitch-bend editing, instrument replacement/preset browsing, MIDI file import into a live project and live stem/region rendering remain separate follow-ups. See [the full instrument and extension plan](instrument-roadmap.md).
+Editing existing CC events, program/pitch-bend editing, instrument replacement/preset browsing, MIDI file import into a live project and live stem/region rendering remain separate follow-ups. See [the full instrument and extension plan](instrument-roadmap.md).
+
+
+New in alpha.3: [performance control](performance-control.md) inserts CC events, dynamics ramps and named articulations directly through MCP, with controller readback and reusable local quartet recipes.

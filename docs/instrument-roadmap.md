@@ -46,7 +46,7 @@ Checked standard system/user VST3 locations, the normal REAPER UserPlugins/Scrip
 | [TAL-Drum](https://tal-software.com/products/tal-drum) | Not found | Defer: paid sampler with a demo, not a permanent free production dependency. Current product has 64 pads; no need while sfizz/RS5k cover immediate sampling. |
 | [Spitfire LABS / Splice INSTRUMENT](https://splice.com/instrument) | Not found | Medium priority for textures and unusual sounds. LABS has transitioned to INSTRUMENT; distinguish the free library from subscription/premium sounds. Record account, entitlement and offline/reopen behaviour per selected pack. |
 | [Decent Sampler](https://www.decentsamples.com/product/decent-sampler-plugin/) | Preset files found; player not found | Medium priority for Pianobook/community libraries. Player availability does not grant rights to every library. Some old presets reference absent samples; repair/library acquisition is a separate task. Product page was blocked to this research client; verify current installer/licence when installing. |
-| [BBC Symphony Orchestra Discover](https://www.spitfireaudio.com/products/bbc-symphony-orchestra-discover) | Not found | **First new instrument priority, matching Alexei's preference.** Official product is free, currently lists 34 instruments including concert grand. Spitfire account/app installation; test strings, brass, woodwinds and percussion, articulation switching and reopen/offline rendering. It is an entry-level orchestral palette, not the full Core/Professional editions. |
+| [BBC Symphony Orchestra Discover](https://www.spitfireaudio.com/products/bbc-symphony-orchestra-discover) | Installed; four strings verified, see dated update below | **First new instrument priority, matching Alexei's preference.** Official product is free, currently lists 34 instruments including concert grand. Spitfire account/app installation; test strings, brass, woodwinds and percussion, articulation switching and reopen/offline rendering. It is an entry-level orchestral palette, not the full Core/Professional editions. |
 | [Orchestral Tools SINEfactory / Berlin Free Orchestra](https://www.orchestraltools.com/free-virtual-instruments) | Not found | Second orchestral option after BBC. Free collections require an Orchestral Tools account and SINE player. Choose individual gaps (electric piano, organ, bass, voices) before duplicating everything. |
 | [Ample Bass P Lite II](https://www.amplesound.net/en/pro-pd.asp?id=19) | Not found | High priority: electric bass fills a real gap alongside our acoustic double bass. Vendor now lists “Ample Bass P Lite”; verify current version/format and library path when installing. |
 | [Ample Guitar M Lite II](https://www.amplesound.net/en/pro-pd.asp?id=7) | Not found | High priority: acoustic guitar fills a real gap. Vendor lists “Ample Guitar M Lite”; verify current build, articulations and note range before writing parts. |
@@ -57,9 +57,28 @@ Record exact version, official source, installation and sample paths, library li
 
 ## Next actions
 
-- [ ] Set up BBC Discover through the official Spitfire account/app route and verify representative orchestral sections.
+- [ ] Verify remaining BBC brass, woodwind and percussion presets; installation and four string sections are complete.
 - [ ] Evaluate/install the two Ample Lite instruments for acoustic guitar and electric bass.
 - [ ] Add SPAN and Youlean Free for measurement cross-checks.
 - [ ] Add ReaPack/SWS to the intended resource profile, then install only needed script dependencies.
 - [ ] Select a small Decent Sampler library set with per-library licence records; reconcile old missing LMMS sample references.
 - [ ] Resolve the exact Quick Adder and MK Slicer package identities before scheduling installation.
+
+## Performance control and quartet templates, 2026-11-16
+
+Alpha.3 adds `live_insert_performance`: musical notes, catalogue-named keyswitches, CC events and bounded sampled-linear ramps in one native MIDI clip. Controller readback is available at `/tracks/{track}/items/{item}/controllers`. Input validation limits expanded events to 128, enforces clip bounds, rejects unknown articulation names and conflicting controller positions, and retains dry-run/write/revision/undo protections. The distinct bridge action fails on older bridges rather than silently dropping CC data.
+
+Verified: 29 automated tests passed, 1 optional generic render test skipped; dedicated native performance acceptance passed separately on both worktree and installed package. The live test covered named keyswitches, a 29-point expression ramp, controller-only insertion, rejection without mutation, save/reopen and a 6.5-second non-silent render with zero clipped samples. Alpha.3 is locally installed and Codex is registered to the tested performance-proof bridge. Existing unsaved REAPER instances were not restarted. A fresh Codex connection may be needed to refresh discovery. This is not an npm publication or merge.
+
+Both empty, four-track native project templates were created and reopened through MCP: `VPO Solo Quartet Template.rpp` and `BBC String Quartet Arrangement Template.rpp`, in `C:/Users/sarut/Music/Reaper MCP`. They preserve the instrument presets, track gains and panning, and contain no piece-specific MIDI. Supporting instructions and the BBC instrument list are in the same folder. The original Mozart projects and audio remain intact.
+
+BBC Discover is installed and its four string-section presets are audio-tested. VPO wave files 3.2 plus Standard scripts 3.3 are installed with four solo-string presets; all 867 referenced sample paths resolved. The user explicitly prefers the BBC sound after comparison. VPO now fills functional solo availability, but is not accepted as equivalent sound quality. The BBC template is a section arrangement, not four solo players. Discover has no solo strings, no recorded legato and only one dynamic layer; CC shaping cannot change that recording limitation.
+
+Next work:
+- [ ] Verify and register BBC's preset-specific keyswitch maps; do not reuse the VPO map.
+- [ ] Audition a higher-quality solo violin/viola/cello library with recorded legato, using the same Mozart excerpt and level-matched listening tests before any purchase.
+- [ ] Add guarded editing/replacement of existing CC and articulation events, rather than only inserting new clips.
+- [ ] Add expressive tempo-map control and stronger score alignment for ties, grace notes and polyphonic passages.
+- [ ] Add reproducible chamber-room mixing and listening review; the VPO comparison was dry.
+
+Implementation and usage: [PR #3](https://github.com/SarutobiSasuke8/reaper-mcp/pull/3), `docs/performance-control.md`, `docs/bbc-discover.md` and `scripts/performance-check.mjs`. Local installed evidence: `ReaperMCP/performance-proof/performance-check.json`. The earlier Control Plane project/access limitation has not been rechecked or claimed resolved by this update.

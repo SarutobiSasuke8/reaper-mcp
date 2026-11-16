@@ -22,7 +22,36 @@ const note = z
     channel: z.number().int().min(0).max(15).default(0),
   })
   .strict();
+const channel = z.number().int().min(0).max(15).default(0);
+const midiByte = z.number().int().min(0).max(127);
+const controller = z.object({ beat, controller: midiByte, value: midiByte, channel }).strict();
+const performance = z.object({
+  track, name: text.default("Performance"), startBeat: beat,
+  lengthBeats: z.number().finite().positive().max(10000),
+  notes: z.array(note).max(128).default([]),
+  controllers: z.array(controller).max(128).default([]),
+  ramps: z.array(z.object({
+    startBeat: beat, endBeat: beat, controller: midiByte,
+    startValue: midiByte, endValue: midiByte,
+    steps: z.number().int().min(1).max(64).default(16), channel,
+  }).strict()).max(16).default([]),
+  instrument: text.optional(),
+  articulations: z.array(z.object({
+    beat, name: text, duration: z.number().finite().positive().max(1).default(0.025), channel,
+  }).strict()).max(64).default([]),
+}).strict().superRefine((a, ctx) => {
+  const fail = (message: string) => ctx.addIssue({ code: "custom", message });
+  if (a.notes.some(n => n.beat + n.duration > a.lengthBeats) ||
+      a.controllers.some(e => e.beat >= a.lengthBeats) ||
+      a.articulations.some(e => e.beat + e.duration > a.lengthBeats) ||
+      a.ramps.some(r => r.endBeat <= r.startBeat || r.endBeat >= a.lengthBeats))
+    fail("Performance events must fit within the clip; ramps must move forward");
+  if (a.articulations.length && !a.instrument) fail("Named articulations require an instrument catalogue ID");
+  const count = a.notes.length + a.controllers.length + a.articulations.length + a.ramps.reduce((n, r) => n + r.steps + 1, 0);
+  if (count < 1 || count > 128) fail("Performance must contain 1-128 expanded events");
+});
 export const musicSchemas = {
+  live_insert_performance: performance,
   live_add_track: z.object({ name: text }).strict(),
   live_insert_instrument: z.object({ track, instrument: text }).strict(),
   live_insert_midi: z
@@ -49,7 +78,9 @@ export const musicCapabilities = Object.entries(musicSchemas).map(
     toolset: "editing",
     modes: ["live"],
     description:
-      name === "live_add_track"
+      name === "live_insert_performance"
+        ? "Insert notes, CC events, sampled linear dynamics ramps and catalogue-named keyswitch articulations in one clip; offsets are clip-relative quarter-note beats, maximum 128 expanded events. Place keyswitches before musical notes."
+        : name === "live_add_track"
         ? "Append a named native track"
         : name === "live_insert_instrument"
           ? "Insert a configured library instrument and its optional VST3 preset"
@@ -62,6 +93,7 @@ const entrySchema = z
     name: text,
     plugin: text,
     preset: z.string().min(1).max(4096).optional(),
+    articulations: z.record(text, midiByte).refine(m => Object.keys(m).length <= 64, "Articulation map limit").optional(),
   })
   .strict();
 export async function instruments() {
@@ -95,18 +127,46 @@ export async function runMusic(
   const a: any = schema.parse(raw);
   let fields: string[];
   if (capability === "live_add_track") fields = [a.name];
-  else if (capability === "live_insert_midi")
+  else if (capability === "live_insert_midi" || capability === "live_insert_performance") {
+    let notes = a.notes;
+    let controllers = a.controllers ?? [];
+    if (capability === "live_insert_performance") {
+      if (a.articulations.length) {
+        const entry = (await instruments()).find(e => e.id === a.instrument);
+        notes = [...notes, ...a.articulations.map((event: any) => {
+          const mapping = entry?.articulations;
+          const pitch = mapping && Object.hasOwn(mapping, event.name) ? mapping[event.name] : undefined;
+          if (pitch === undefined) throw new ToolError("not_found", "Unknown instrument/articulation; read /instruments");
+          return { beat: event.beat, duration: event.duration, pitch, velocity: 1, channel: event.channel };
+        })];
+      }
+      controllers = [...controllers, ...a.ramps.flatMap((r: any) =>
+        Array.from({ length: r.steps + 1 }, (_, i) => ({
+          beat: r.startBeat + (r.endBeat - r.startBeat) * i / r.steps,
+          controller: r.controller, channel: r.channel,
+          value: Math.round(r.startValue + (r.endValue - r.startValue) * i / r.steps),
+        })))];
+      const positions = new Set<string>();
+      for (const e of controllers) {
+        const key = `${e.channel}:${e.controller}:${e.beat}`;
+        if (positions.has(key)) throw new ToolError("invalid_input", "Conflicting controller events at the same beat");
+        positions.add(key);
+      }
+      controllers.sort((x: any, y: any) => x.beat - y.beat);
+    }
     fields = [
       String(a.track),
       a.name,
       String(a.startBeat),
       String(a.lengthBeats),
-      a.notes
+      notes
         .map((n: any) =>
           [n.beat, n.duration, n.pitch, n.velocity, n.channel].join(","),
         )
         .join(";"),
     ];
+    if (capability === "live_insert_performance") fields.push(controllers.map((e: any) => [e.beat, e.controller, e.value, e.channel].join(",")).join(";"));
+  }
   else {
     const entry = (await instruments()).find((e) => e.id === a.instrument);
     if (!entry)

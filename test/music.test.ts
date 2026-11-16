@@ -114,3 +114,43 @@ test("live music respects read-only mode and explicit offline selection", async 
   });
   assert.equal(offline.isError, true);
 });
+
+test("performance bounds validate expanded ramps, clip fit and named-articulation requirements", () => {
+  const base = { track: 0, startBeat: 0, lengthBeats: 4, controllers: [{ beat: 0, controller: 11, value: 70 }] };
+  assert.equal(musicSchemas.live_insert_performance.parse(base).controllers[0]!.channel, 0);
+  for (const patch of [
+    { controllers: [] },
+    { controllers: [{ beat: 4, controller: 11, value: 70 }] },
+    { controllers: [{ beat: 0, controller: 128, value: 70 }] },
+    { controllers: [{ beat: 0, controller: 11, value: -1 }] },
+    { controllers: [{ beat: 0, controller: 11, value: 70, channel: 16 }] },
+    { ramps: [{ startBeat: 2, endBeat: 1, controller: 1, startValue: 0, endValue: 127 }] },
+    { ramps: Array(2).fill({ startBeat: 0, endBeat: 3, controller: 1, startValue: 0, endValue: 127, steps: 64 }) },
+    { articulations: [{ beat: 0, name: "staccato" }] },
+    { notes: [{ beat: 3.9, duration: 1, pitch: 60 }] },
+  ]) assert.throws(() => musicSchemas.live_insert_performance.parse({ ...base, ...patch }));
+});
+
+test("performance dispatch expands catalogue keyswitches and ramps and rejects conflicts before mutation", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "performance-"));
+  const config = path.join(root, "catalogue.json");
+  const previous = process.env.REAPER_MCP_INSTRUMENTS;
+  process.env.REAPER_MCP_INSTRUMENTS = config;
+  await writeFile(config, JSON.stringify([{ id: "solo", name: "Solo", plugin: "sfizz", articulations: { staccato: 40 } }]));
+  const calls: any[] = [];
+  const bridge = { mutate: async (...args: any[]) => { calls.push(args); return {}; } } as unknown as LiveBridge;
+  const base = { track: 2, startBeat: 8, lengthBeats: 4, instrument: "solo", articulations: [{ beat: 0, name: "staccato" }], notes: [{ beat: 0.1, duration: 0.5, pitch: 64 }], ramps: [{ startBeat: 0, endBeat: 3, controller: 11, startValue: 40, endValue: 100, steps: 2 }] };
+  try {
+    await runMusic(bridge, "live_insert_performance", base, true);
+    assert.equal(calls[0][0], "live_insert_performance");
+    assert.equal(calls[0][2], true);
+    assert.match(calls[0][1][4], /0,0.025,40,1,0/);
+    assert.equal(calls[0][1][5], "0,11,40,0;1.5,11,70,0;3,11,100,0");
+    await assert.rejects(runMusic(bridge, "live_insert_performance", { ...base, articulations: [{ beat: 0, name: "toString" }] }, false), /Unknown instrument/);
+    await assert.rejects(runMusic(bridge, "live_insert_performance", { ...base, controllers: [{ beat: 0, controller: 11, value: 1 }] }, false), /Conflicting/);
+    assert.equal(calls.length, 1);
+  } finally {
+    if (previous === undefined) delete process.env.REAPER_MCP_INSTRUMENTS;
+    else process.env.REAPER_MCP_INSTRUMENTS = previous;
+  }
+});

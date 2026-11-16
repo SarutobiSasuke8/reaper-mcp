@@ -22,7 +22,7 @@ RPP conversion currently supports audio items, MIDI notes, step tempo changes, e
 - A small, well-shaped agent tool surface (about 12Ã¢â‚¬â€œ15 tools, toolsets, describe/run) over REAPER, instead of hundreds of raw actions.
 - Two modes:
   - **Offline:** write `.RPP` projects from a backend-neutral song model and render headlessly with `reaper -renderproject`.
-  - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Transport, live MIDI/item creation and FX parameter editing remain roadmap work.
+  - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Native track/instrument insertion, MIDI clips, CC/dynamics ramps, named keyswitch articulations and save/reopen/render are also available. Transport and FX parameter editing remain roadmap work.
 - Ports the music logic and thinking from [lmms-mcp](https://github.com/SarutobiSasuke8/lmms-mcp): genre templates, groove, arrangement, DJ personas, vocal chops, evaluation and taste/audition. LMMS remains the free fallback backend.
 
 ## REAPER licensing
@@ -34,3 +34,5 @@ REAPER is commercial software from Cockos. This repository never contains or red
 MIT. See [LICENSE](LICENSE).
 
 Live composition: [MIDI and instrument workflow](docs/live-music.md). Optional additions: [instrument and workflow expansion plan](docs/instrument-roadmap.md).
+
+Performance control and local quartet templates: [usage](docs/performance-control.md). BBC palette and solo-string limitations: [instrument reference](docs/bbc-discover.md).

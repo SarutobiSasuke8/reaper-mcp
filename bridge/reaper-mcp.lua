@@ -46,6 +46,20 @@ local function get_value(p, object_path)
     for i=0,2047 do local ok,name,id=reaper.EnumInstalledFX(i);if not ok then break end;plugins[#plugins+1]={name=name,id=id} end
     return plugins
   end
+  local ci,cj=object_path:match("^/tracks/(%d+)/items/(%d+)/controllers$")
+  if ci then
+    local tr=assert(reaper.GetTrack(p,tonumber(ci)),"Track not found")
+    local it=assert(reaper.GetTrackMediaItem(tr,tonumber(cj)),"Item not found")
+    local take=assert(reaper.GetActiveTake(it),"Take not found")
+    assert(reaper.TakeIsMIDI(take),"Not MIDI")
+    local _,_,count=reaper.MIDI_CountEvts(take);assert(count<=10000,"Controller read limit")
+    local events={__array=true}
+    for i=0,count-1 do
+      local ok,selected,muted,pos,msg,channel,cc,value=reaper.MIDI_GetCC(take,i)
+      if ok and msg==176 then events[#events+1]={beat=reaper.MIDI_GetProjQNFromPPQPos(take,pos),controller=cc,value=value,channel=channel} end
+    end
+    return events
+  end
   local ti,ii=object_path:match("^/tracks/(%d+)/items/(%d+)/notes$")
   if ti then
     local tr=assert(reaper.GetTrack(p,tonumber(ti)),"Track not found")
@@ -129,7 +143,7 @@ local function music(p,a)
       local t=assert(reaper.GetTrack(p,index));reaper.GetSetMediaTrackInfo_String(t,'P_NAME',name,true)
       result.track=track_view(t)
     end
-  elseif action=="live_insert_instrument" or action=="live_insert_midi" then
+  elseif action=="live_insert_instrument" or action=="live_insert_midi" or action=="live_insert_performance" then
     local index=number(a[9],0,255,true);local t=assert(reaper.GetTrack(p,index),"Track not found")
     if action=="live_insert_instrument" then
       assert(reaper.TrackFX_GetCount(t)<128,"FX limit")
@@ -151,17 +165,37 @@ local function music(p,a)
       assert(reaper.CountTrackMediaItems(t)<10000,"Item limit")
       local notes={}
       for row in (a[13]..';'):gmatch('(.-);') do
+        if row~='' then
         local b,d,pitch,velocity,channel=row:match('^([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)$')
         local n={number(b,0,length),number(d,0.000001,length),number(pitch,0,127,true),number(velocity,1,127,true),number(channel,0,15,true)}
         assert(n[1]+n[2]<=length+0.00000001,"Note outside item");notes[#notes+1]=n
+        end
       end
-      assert(#notes>=1 and #notes<=128,"Note limit")
+      local controllers={}
+      if action=="live_insert_performance" then
+        assert(a[14],"Missing controller field")
+        local positions={}
+        for row in (a[14]..';'):gmatch('(.-);') do
+          if row~='' then
+            local b,cc,value,channel=row:match('^([^,]+),([^,]+),([^,]+),([^,]+)$')
+            local e={number(b,0,length),number(cc,0,127,true),number(value,0,127,true),number(channel,0,15,true)}
+            assert(e[1]<length,"Controller outside item")
+            local key=tostring(e[1])..':'..e[2]..':'..e[4];assert(not positions[key],"Conflicting controller events");positions[key]=true
+            controllers[#controllers+1]=e
+          end
+        end
+      else assert(#notes>=1,"Note limit") end
+      assert(#notes+#controllers>=1 and #notes+#controllers<=128,"Event limit")
       result.noteCount=#notes
+      result.controllerCount=#controllers
       perform=function()
         local item=assert(reaper.CreateNewMIDIItemInProj(t,reaper.TimeMap2_QNToTime(p,start),reaper.TimeMap2_QNToTime(p,start+length),false))
         local ok,err=pcall(function()
           local take=assert(reaper.GetActiveTake(item))
           reaper.GetSetMediaItemTakeInfo_String(take,'P_NAME',name,true)
+          for _,e in ipairs(controllers) do
+            assert(reaper.MIDI_InsertCC(take,false,false,reaper.MIDI_GetPPQPosFromProjQN(take,start+e[1]),176,e[4],e[2],e[3]))
+          end
           for _,n in ipairs(notes) do
             assert(reaper.MIDI_InsertNote(take,false,false,reaper.MIDI_GetPPQPosFromProjQN(take,start+n[1]),reaper.MIDI_GetPPQPosFromProjQN(take,start+n[1]+n[2]),n[5],n[3],n[4],true))
           end

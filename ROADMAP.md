@@ -104,3 +104,19 @@ The proposed next milestone is reliable musical iteration, not maximum action co
 5. **Make unattended operation dependable.** Structured startup/job progress, cancellation, actionable missing-plugin errors, safe session ownership and a second-machine acceptance matrix. Proof: recover from closed REAPER, absent samples and interrupted rendering without altering user work or taking desktop focus.
 
 Keep the MCP surface compact, with capability discovery, predictable errors and bounded payloads. Add public example projects using bundled/free instruments, reproducible acceptance outputs and a short installation-to-render walkthrough. Vocal synthesis is a later adapter: audition score-driven singers first, then prove lyric/note alignment and export into REAPER before advertising integration.
+
+
+## Musical iteration pass: alpha.5
+
+Implemented under the existing 14-tool surface:
+
+- [x] Read MIDI item/take identity and native event indices.
+- [x] Edit existing note timing, duration, pitch, velocity and channel, preserving omitted fields.
+- [x] Replace a known catalogue keyswitch with another named articulation.
+- [x] Replace a bounded CC/channel interval with a sampled dynamics ramp, retaining unrelated events.
+- [x] Render an absolute beat range plus optional tail into a unique snapshot/output directory for before/after comparison.
+- [x] Reject wrong takes, invalid bounds, duplicate edits, overlapping ramps, repeated loops and pooled MIDI. Keep one native undo block and restore the MIDI buffer on API failure.
+
+Acceptance uses a separately installed tarball, bundled ReaSynth and disposable hidden REAPER processes. See `scripts/editing-check.mjs` and `docs/performance-control.md`. npm authentication is independent of these local workflows.
+
+This completes part of differentiation priorities 1 and 2. Remaining: tempo-map edits, general CC/note deletion, arbitrary automation curves, multi-item transactions, explicit MCP undo, stems, loudness-matched A/B previews, instrument-aware chase and musical acceptance on the full orchestral project. ReaSynth event/readback and audio tests do not certify every third-party library's articulation behaviour.

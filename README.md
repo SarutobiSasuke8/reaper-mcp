@@ -22,7 +22,7 @@ RPP conversion currently supports audio items, MIDI notes, step tempo changes, e
 - A compact surface of 14 MCP tools, with capability discovery and guarded execution.
 - Two modes:
   - **Offline:** write `.RPP` projects from a backend-neutral song model and render headlessly with `reaper -renderproject`.
-  - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Native track/instrument insertion, MIDI clips, CC/dynamics ramps, named keyswitch articulations and save/reopen/render are also available. Transport and FX parameter editing remain roadmap work.
+  - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Native track/instrument insertion, MIDI clips, CC/dynamics ramps, named keyswitch articulations guarded existing-note/keyswitch edits, scoped CC ramp replacement and save/reopen/section renders are also available. See [performance editing](docs/performance-control.md). Transport and FX parameter editing remain roadmap work.
 - Builds on MIT-licensed audio-analysis code from [lmms-mcp](https://github.com/SarutobiSasuke8/lmms-mcp). Broader genre, arrangement and vocal workflows remain roadmap work.
 
 ## REAPER licensing

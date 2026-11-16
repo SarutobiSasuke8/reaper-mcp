@@ -50,7 +50,37 @@ const performance = z.object({
   const count = a.notes.length + a.controllers.length + a.articulations.length + a.ramps.reduce((n, r) => n + r.steps + 1, 0);
   if (count < 1 || count > 128) fail("Performance must contain 1-128 expanded events");
 });
+const editIndex = z.number().int().min(0).max(9999);
+const editPerformance = z.object({
+  track, item: editIndex, takeGuid: text,
+  notes: z.array(z.object({index: editIndex, beat: beat.optional(),
+    duration: z.number().finite().positive().max(10000).optional(),
+    pitch: midiByte.optional(), velocity: z.number().int().min(1).max(127).optional(),
+    channel: z.number().int().min(0).max(15).optional(),
+  }).strict()).max(128).default([]),
+  instrument: text.optional(),
+  articulations: z.array(z.object({index: editIndex, from: text, to: text}).strict()).max(64).default([]),
+  ramps: z.array(z.object({startBeat: beat, endBeat: beat, controller: midiByte,
+    startValue: midiByte, endValue: midiByte, steps: z.number().int().min(1).max(64).default(16), channel,
+  }).strict()).max(16).default([]),
+}).strict().superRefine((a, ctx) => {
+  const fail = (message: string) => ctx.addIssue({code: "custom", message});
+  const indices = [...a.notes, ...a.articulations].map(n => n.index);
+  if (new Set(indices).size !== indices.length) fail("Duplicate note/articulation index");
+  if (a.notes.some(n => Object.keys(n).length === 1)) fail("Empty note edit");
+  if (a.articulations.length && !a.instrument) fail("Articulations require an instrument catalogue ID");
+  const count = indices.length + a.ramps.reduce((n,r) => n+r.steps+1,0);
+  if (count < 1 || count > 128) fail("Edits must contain 1-128 expanded events");
+  a.ramps.forEach((r,i) => {
+    if (r.endBeat <= r.startBeat) fail("Ramp must move forward");
+    if (a.ramps.slice(0,i).some(q => q.channel===r.channel && q.controller===r.controller && q.endBeat>=r.startBeat && r.endBeat>=q.startBeat)) fail("Overlapping controller ranges");
+  });
+});
+export const sectionSchema = z.object({startBeat: beat, endBeat: beat,
+  tailSeconds: z.number().finite().min(0).max(30).default(0),
+}).strict().refine(s => s.endBeat > s.startBeat, "Section must move forward");
 export const musicSchemas = {
+  live_edit_performance: editPerformance,
   live_insert_performance: performance,
   live_add_track: z.object({ name: text }).strict(),
   live_insert_instrument: z.object({ track, instrument: text }).strict(),
@@ -78,7 +108,9 @@ export const musicCapabilities = Object.entries(musicSchemas).map(
     toolset: "editing",
     modes: ["live"],
     description:
-      name === "live_insert_performance"
+      name === "live_edit_performance"
+        ? "Edit indexed notes and catalogue keyswitches in an existing MIDI take. Read notes and item metadata first. Beats are clip-relative. Ramps replace matching CC/channel events within inclusive ranges. Rejects looped, pooled or external MIDI; maximum 128 expanded edits. Re-read indices after every edit."
+        : name === "live_insert_performance"
         ? "Insert notes, CC events, sampled linear dynamics ramps and catalogue-named keyswitch articulations in one clip; offsets are clip-relative quarter-note beats, maximum 128 expanded events. Place keyswitches before musical notes."
         : name === "live_add_track"
         ? "Append a named native track"
@@ -127,6 +159,18 @@ export async function runMusic(
   const a: any = schema.parse(raw);
   let fields: string[];
   if (capability === "live_add_track") fields = [a.name];
+  else if (capability === "live_edit_performance") {
+    const entry = a.articulations.length ? (await instruments()).find(e => e.id === a.instrument) : undefined;
+    const arts = a.articulations.map((e: any) => {
+      const map = entry?.articulations;
+      if (!map || !Object.hasOwn(map,e.from) || !Object.hasOwn(map,e.to))
+        throw new ToolError("not_found", "Unknown instrument/articulation; read /instruments");
+      return [e.index,map[e.from],map[e.to]].join(",");
+    });
+    fields = [String(a.track),String(a.item),a.takeGuid,
+      a.notes.map((n: any) => [n.index,n.beat??"",n.duration??"",n.pitch??"",n.velocity??"",n.channel??""].join(",")).join(";"),
+      arts.join(";"),a.ramps.map((r: any) => [r.startBeat,r.endBeat,r.controller,r.startValue,r.endValue,r.steps,r.channel].join(",")).join(";")];
+  }
   else if (capability === "live_insert_midi" || capability === "live_insert_performance") {
     let notes = a.notes;
     let controllers = a.controllers ?? [];
@@ -235,12 +279,16 @@ export async function renderLive(
   bridge: LiveBridge,
   workspace: Workspace,
   timeout: number,
+  section?: z.infer<typeof sectionSchema>,
 ) {
   const exe = await locateReaper();
   if (!exe) throw new ToolError("reaper_not_found", "REAPER is not installed");
   const folder = await mkdtemp(path.join(workspace.root, "live-render-"));
   const project = path.join(folder, "mix.rpp");
-  await bridge.mutate("snapshot", [project, folder], false);
+  const bounds = section ? sectionSchema.parse(section) : undefined;
+  const snapshot = await bridge.mutate("snapshot", [project, folder, ...(bounds ? [String(bounds.startBeat),String(bounds.endBeat),String(bounds.tailSeconds)] : [])], false);
+  if (bounds && (!Number.isFinite(snapshot.startSeconds) || !Number.isFinite(snapshot.endSeconds)))
+    throw new ToolError("bridge_upgrade_required", "Section rendering requires the updated bridge; start a fresh managed session");
   const cfg = path.join(folder, "reaper.ini");
   const vstPaths = process.env.REAPER_MCP_VST_PATHS;
   if (vstPaths && /[\r\n]/.test(vstPaths))
@@ -275,5 +323,7 @@ export async function renderLive(
   return {
     files: [path.relative(workspace.root, output).replaceAll("\\", "/")],
     elapsedMs: Date.now() - started,
+    section: bounds ?? null,
+    snapshot,
   };
 }

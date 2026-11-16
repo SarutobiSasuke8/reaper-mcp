@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   musicSchemas,
+  sectionSchema,
   runMusic,
   instruments,
   liveProject,
@@ -153,4 +154,26 @@ test("performance dispatch expands catalogue keyswitches and ramps and rejects c
     if (previous === undefined) delete process.env.REAPER_MCP_INSTRUMENTS;
     else process.env.REAPER_MCP_INSTRUMENTS = previous;
   }
+});
+
+
+test("existing performance edits validate indices, limits and controller ranges before writing", async () => {
+  const base = {track:0,item:0,takeGuid:"{test}",notes:[{index:1,velocity:50}]};
+  const calls: any[]=[];
+  const bridge={mutate:async (...args:any[])=>{calls.push(args);return {};}} as unknown as LiveBridge;
+  await runMusic(bridge,"live_edit_performance",base,true);
+  assert.deepEqual(calls[0],["live_edit_performance",["0","0","{test}","1,,,,50,","",""],true]);
+  for(const patch of [
+    {notes:[]},{notes:[{index:0}]},{notes:[{index:0,velocity:0}]},
+    {notes:[{index:0,pitch:60},{index:0,pitch:61}]},
+    {articulations:[{index:1,from:"long",to:"short"}]},
+    {ramps:[{startBeat:2,endBeat:1,controller:11,startValue:1,endValue:100}]},
+    {ramps:[{startBeat:0,endBeat:2,controller:11,startValue:1,endValue:100},{startBeat:2,endBeat:3,controller:11,startValue:1,endValue:100}]},
+  ]) await assert.rejects(runMusic(bridge,"live_edit_performance",{...base,...patch},false));
+  assert.equal(calls.length,1);
+});
+
+test("section bounds reject reversed, unbounded and unknown inputs", () => {
+  assert.deepEqual(sectionSchema.parse({startBeat:2,endBeat:4}),{startBeat:2,endBeat:4,tailSeconds:0});
+  for(const s of [{startBeat:2,endBeat:2},{startBeat:4,endBeat:2},{startBeat:-1,endBeat:2},{startBeat:0,endBeat:Infinity},{startBeat:0,endBeat:2,tailSeconds:31},{startBeat:0,endBeat:2,file:"overwrite.wav"}]) assert.throws(()=>sectionSchema.parse(s));
 });

@@ -42,3 +42,41 @@ Editing existing MIDI events, pitch bend/program changes, verified BBC articulat
 ## Version reporting and reconnecting
 
 The MCP initialise handshake and health response read the installed package version from package.json. Earlier alpha.3 builds still reported alpha.2 because those two strings were hard-coded. An MCP process already running retains its loaded modules after an on-disk upgrade; reconnect the client to load the new server. Do not restart or terminate an unsaved REAPER project to refresh a stdio MCP client. A fresh client should report the package version and find `live_insert_performance` through capability discovery.
+
+
+## Editing an existing performance (alpha.5)
+
+Enable the editing toolset. Read `/tracks/0/items/0` for `takeGuid` and clip start/length, then `/tracks/0/items/0/notes` and `/controllers`. Each event now includes its native `index`, selection and mute state. Readback times remain absolute project quarter-note beats; edit offsets are relative to the clip start.
+
+Call `reaper_run` with `capability: "live_edit_performance"`, first with `dryRun: true`:
+
+```json
+{
+  "track": 0, "item": 0, "takeGuid": "{GUID-FROM-READBACK}",
+  "notes": [{"index": 2, "velocity": 72, "duration": 0.75}],
+  "instrument": "your-catalogue-id",
+  "articulations": [{"index": 0, "from": "long", "to": "short"}],
+  "ramps": [{"startBeat": 1, "endBeat": 3, "controller": 11,
+    "startValue": 40, "endValue": 95, "steps": 16, "channel": 0}]
+}
+```
+
+Omit any unused arrays or instrument. Note edits can change beat, duration, pitch, velocity or channel; omitted properties and selection/mute states are preserved. Named articulation edits require the existing note to match the `from` mapping and velocity 1 used by MCP insertion. The catalogue must match the loaded preset. A synth test proves event changes, not how every commercial instrument interprets a keyswitch.
+
+Ramps replace only CC events with the specified number/channel within the inclusive interval, then insert `steps + 1` linear samples. Other CC events, pitch bends, text and SysEx are retained. New ramp samples are unmuted and unselected. Ramps cannot overlap on the same controller/channel or collide at MIDI tick resolution. A call supports up to 128 expanded edits, all validated before mutation. Native errors restore the original MIDI event buffer; successful changes form one REAPER undo block. Re-read event indices after every change because sorting can reorder them.
+
+This first editing pass accepts embedded, unpooled MIDI with no take offset or playback-rate adjustment. Actually repeated loop sources are rejected. A default loop-source checkbox on an unextended clip is accepted. Convert unsupported sources to an independent ordinary MIDI clip first. General controller deletion, note insertion/deletion within existing clips and curve shapes are future work.
+
+## Comparing section renders
+
+Call `reaper_render` in live mode with `target: "mix"` and:
+
+```json
+{"section": {"startBeat": 16, "endBeat": 32, "tailSeconds": 1}, "timeoutMs": 240000}
+```
+
+Bounds use absolute project quarter-note beats and follow the tempo map. The end is exclusive; optional tail seconds extend it (default 0, maximum 30). Each call saves a native snapshot and renders to a new `live-render-*` directory. The response includes the requested section and snapshot bounds in seconds. Source render settings are restored. Without `section`, full-project rendering remains unchanged. Offline section arguments fail explicitly.
+
+Render before editing, make the change, and render again with identical bounds. Keep the two returned paths with the edit recipe; use `reaper_analyze` to compare levels before listening. These are raw comparison renders, not automatically loudness-matched. For sample instruments, start early enough to include preceding keyswitches and controller initialisation: plugin-specific chase/legato behaviour is not guaranteed when starting mid-phrase.
+
+Native acceptance: `REAPER_MCP_RUN_RELEASE_CHECK=true node scripts/editing-check.mjs`. It uses a disposable hidden profile and bundled ReaSynth, verifies edits and unchanged events, checks equal-duration changed audio, and restarts only its own instance to verify saved edits.

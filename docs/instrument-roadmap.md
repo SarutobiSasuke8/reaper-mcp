@@ -77,7 +77,7 @@ BBC Discover is installed and its four string-section presets are audio-tested. 
 Next work:
 - [ ] Verify and register BBC's preset-specific keyswitch maps; do not reuse the VPO map.
 - [ ] Audition a higher-quality solo violin/viola/cello library with recorded legato, using the same Mozart excerpt and level-matched listening tests before any purchase.
-- [ ] Add guarded editing/replacement of existing CC and articulation events, rather than only inserting new clips.
+- [x] Add guarded existing-note and keyswitch edits plus scoped CC ramp replacement (alpha.5). See `performance-control.md`.
 - [ ] Add expressive tempo-map control and stronger score alignment for ties, grace notes and polyphonic passages.
 - [ ] Add reproducible chamber-room mixing and listening review; the VPO comparison was dry.
 

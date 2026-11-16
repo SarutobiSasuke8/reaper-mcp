@@ -1,3 +1,4 @@
+import { sectionSchema } from "./music.js";
 // House-template contract annotations and safe-error wrapper adapted for SDK 1.x.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -139,6 +140,7 @@ const definitions = {
     schema: z.object({
       ...mode,
       target: z.enum(["mix", "stems", "regions"]).default("mix"),
+      section: sectionSchema.optional(),
       timeoutMs: z
         .number()
         .int()
@@ -256,6 +258,7 @@ export async function call(
           service.live!,
           service.workspace,
           args.timeoutMs as number,
+          args.section as z.infer<typeof sectionSchema> | undefined,
         );
       } else if (name === "reaper_analyze") {
         value = await service.analyze(args.file as string);
@@ -380,6 +383,7 @@ export async function call(
           );
           break;
         case "reaper_render":
+          if (args.section) throw new ToolError("unsupported_offline", "Section rendering requires live mode");
           value = await service.render(
             args.target as "mix" | "stems" | "regions",
             args.timeoutMs as number,

@@ -9,7 +9,8 @@ import {
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { isolatedIni, locateReaper } from "./render.js";
+import { locateReaper } from "./render.js";
+import { liveIni } from "./profile.js";
 import { Workspace } from "./workspace.js";
 
 export function alive(pid: number): boolean {
@@ -69,14 +70,9 @@ export async function ensureRunning(
       throw Error("REAPER not found; install separately or set REAPER_PATH");
     const ini = path.join(profile, "reaper.ini");
     try {
-      const vst = process.env.REAPER_MCP_VST_PATHS;
-      if (vst && /[\r\n]/.test(vst)) throw Error("Invalid VST search paths");
       await writeFile(
         ini,
-        isolatedIni().replace(
-          "[REAPER]\n",
-          `[REAPER]\n${vst ? `vstpath64=${vst}\n` : ""}`,
-        ),
+        liveIni(),
         { flag: "wx" },
       );
     } catch (e) {
@@ -99,7 +95,7 @@ export async function ensureRunning(
         env: { ...process.env, REAPER_MCP_BRIDGE_DIR: bridge },
         stdio: "ignore",
         detached: true,
-        windowsHide: false,
+        windowsHide: process.env.REAPER_MCP_SHOW_WINDOW !== "true",
       },
     );
     await new Promise<void>((resolve, reject) => {

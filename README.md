@@ -2,11 +2,11 @@
 
 An agent-first MCP server for [REAPER](https://www.reaper.fm/), built by Alexei Udall.
 
-**Status: Windows alpha release candidate, 0.1.0-alpha.1.** Not yet published.
+**Status: Windows public-alpha candidate, 0.1.0-alpha.4.** Package prepared for release; see the release evidence before publishing.
 
-The initial offline checkpoint now has a typed song model, RPP subset import/export, MIDI/WAV import, object-path editing, fourteen MCP tools and audio measurements. It uses the house MCP template's contracts and protocol-test patterns on the existing LMMS SDK stack.
+Compose native MIDI tracks, insert configured instruments, shape CC dynamics and keyswitch articulations, save projects and render audio through 14 MCP tools. Offline workflows also support a conservative RPP subset, MIDI/WAV import, mix/stem/region rendering and audio measurements.
 
-**Windows alpha candidate:** fresh-profile rendering and native live track inspection/editing have passed on REAPER 7.86. See [alpha usage and limits](docs/windows-alpha.md). This remains a review draft, not a completed P0â€“P5 build.
+Windows 10/11 with a separately installed REAPER is the supported alpha target. Native acceptance is tested on REAPER 7.86. [Install and configure](docs/install-windows.md), [supported operations and limits](docs/windows-alpha.md), [release evidence](docs/release-alpha-4.md).
 
 ```sh
 npm ci
@@ -15,7 +15,7 @@ npm run check
 
 See [Windows setup](docs/install-windows.md), [architecture](docs/architecture.md), [tool contract](docs/PROJECT_BRIEF.md), [headless evidence](docs/headless.md), and [port manifest](docs/porting.md).
 
-RPP conversion currently supports audio items, MIDI notes, step tempo changes, explicit sends, JSFX references and markers/regions. Unknown structures fail explicitly; existing complex DAW projects are not safe to round-trip through this subset converter. ReaPlugs/VST state, controllers, take lanes and automation remain pending.
+RPP conversion currently supports audio items, MIDI notes, step tempo changes, explicit sends, JSFX references and markers/regions. Unknown structures fail explicitly; existing complex DAW projects are not safe to round-trip through this subset converter. The offline converter does not support arbitrary VST state, controllers, take lanes or automation. Use native live operations to preserve existing plugin state and insert CC/articulation performances.
 
 ## Purpose
 

@@ -4,6 +4,19 @@ An agent-first MCP server for [REAPER](https://www.reaper.fm/), built by Alexei 
 
 **Status: pre-alpha. Private repository.** Nothing here is released yet.
 
+The initial offline checkpoint now has a typed song model, RPP subset import/export, MIDI/WAV import, object-path editing, fourteen MCP tools and audio measurements. It uses the house MCP template's contracts and protocol-test patterns on the existing LMMS SDK stack.
+
+**Unattended rendering is not yet verified:** the Windows startup probe times out. Live mode is not implemented in this checkpoint. This is a review draft, not a completed v0 build.
+
+```sh
+npm ci
+npm run check
+```
+
+See [Windows setup](docs/install-windows.md), [architecture](docs/architecture.md), [tool contract](docs/PROJECT_BRIEF.md), [headless evidence](docs/headless.md), and [port manifest](docs/porting.md).
+
+RPP conversion currently supports audio items, MIDI notes, step tempo changes, explicit sends, JSFX references and markers/regions. Unknown structures fail explicitly; existing complex DAW projects are not safe to round-trip through this subset converter. ReaPlugs/VST state, controllers, take lanes and automation remain pending.
+
 ## Purpose
 
 - A small, well-shaped agent tool surface (about 12–15 tools, toolsets, describe/run) over REAPER, instead of hundreds of raw actions.

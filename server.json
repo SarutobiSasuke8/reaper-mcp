@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.SarutobiSasuke8/reaper-mcp",
+  "title": "REAPER MCP by Alexei Udall",
+  "description": "Offline REAPER project editing and a local live bridge for Cockos REAPER.",
+  "repository": {
+    "url": "https://github.com/SarutobiSasuke8/reaper-mcp",
+    "source": "github"
+  },
+  "version": "0.1.0-alpha.5",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@sarutobi-sasuke/reaper-mcp",
+      "version": "0.1.0-alpha.5",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "REAPER_MCP_WORKSPACE",
+          "description": "Workspace directory for REAPER projects and generated files.",
+          "isRequired": true,
+          "isSecret": false
+        },
+        {
+          "name": "REAPER_MCP_ALLOW_WRITES",
+          "description": "Set to true only for trusted sessions that need write tools. Off by default.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

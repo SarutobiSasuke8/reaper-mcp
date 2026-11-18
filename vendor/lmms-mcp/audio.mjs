@@ -1,5 +1,8 @@
 // WAV I/O, measurement and offline mastering helpers. Pure JavaScript, no native dependencies.
 import { deflateSync } from 'node:zlib';
+import { kWeight } from './k-weight.mjs';
+import { loudnessRangeFromWeighted } from './lra.mjs';
+import { stereoImage } from './stereo.mjs';
 
 export const db = value => value > 0 ? Number((20 * Math.log10(value)).toFixed(2)) : null;
 const powerDb = value => value > 0 ? Number((10 * Math.log10(value)).toFixed(2)) : null;
@@ -80,30 +83,11 @@ function meanSquare(audio, start = 0, end = audio.frames) {
   return sum / Math.max(1, (end - start) * audio.channels.length);
 }
 
-// ITU-R BS.1770 K-weighting, with coefficients derived for the file's sample rate.
-function kWeight(input, sampleRate) {
-  const stage = (b, a, x) => {
-    const y = new Float64Array(x.length);
-    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-    for (let i = 0; i < x.length; i++) {
-      const v = b[0] * x[i] + b[1] * x1 + b[2] * x2 - a[0] * y1 - a[1] * y2;
-      x2 = x1; x1 = x[i]; y2 = y1; y1 = v; y[i] = v;
-    }
-    return y;
-  };
-  let k = Math.tan(Math.PI * 1681.974450955533 / sampleRate);
-  let q = 0.7071752369554196;
-  const vh = 10 ** (3.999843853973347 / 20), vb = vh ** 0.4996667741545416;
-  let a0 = 1 + k / q + k * k;
-  const shelved = stage([(vh + vb * k / q + k * k) / a0, 2 * (k * k - vh) / a0, (vh - vb * k / q + k * k) / a0],
-    [2 * (k * k - 1) / a0, (1 - k / q + k * k) / a0], input);
-  k = Math.tan(Math.PI * 38.13547087602444 / sampleRate);
-  q = 0.5003270373238773;
-  a0 = 1 + k / q + k * k;
-  return stage([1, -2, 1], [2 * (k * k - 1) / a0, (1 - k / q + k * k) / a0], shelved);
-}
 export function loudness(audio) {
-  const weighted = audio.channels.map(ch => kWeight(ch, audio.sampleRate));
+  return integratedLoudness(audio, audio.channels.map(ch => kWeight(ch, audio.sampleRate)));
+}
+
+function integratedLoudness(audio, weighted) {
   const block = Math.round(audio.sampleRate * 0.4), hop = Math.round(audio.sampleRate * 0.1);
   const energies = [];
   for (let start = 0; start + block <= audio.frames; start += hop) {
@@ -264,12 +248,19 @@ export function analyze(audio, { sections = [], pitch = false } = {}) {
   let jump = 0;
   for (const ch of audio.channels) jump = Math.max(jump, Math.abs(ch[0] - ch[frames - 1]));
   const edge = Math.min(frames, Math.round(sampleRate * 0.05));
+  // How fast the waveform itself moves at the two ends: the largest sample-to-sample step in the first and last millisecond.
+  // A join that jumps no more than the audio does by itself is a continuation, not a click (a loop that starts on a drum hit).
+  let step = 0;
+  const near = Math.min(frames - 1, Math.max(8, Math.round(sampleRate * 0.001)));
+  for (const ch of audio.channels) for (let i = 1; i <= near; i++) step = Math.max(step, Math.abs(ch[i] - ch[i - 1]), Math.abs(ch[frames - i] - ch[frames - i - 1]));
+  const weighted = audio.channels.map(ch => kWeight(ch, sampleRate));
+  const { lraLu } = loudnessRangeFromWeighted(sampleRate, weighted);
   const report = {
     sampleRate, channels: audio.channels.length, durationSeconds: Number((frames / sampleRate).toFixed(4)),
-    ...loudness(audio), truePeakDbfs: db(truePeak(audio)), ...levels(audio, 0, frames),
+    ...integratedLoudness(audio, weighted), lraLu, stereo: stereoImage(audio), truePeakDbfs: db(truePeak(audio)), ...levels(audio, 0, frames),
     clippedSamples: clipped, dcOffset: Number((dc / (frames * audio.channels.length)).toFixed(5)),
     ...spectrum(audio),
-    loop: { boundaryJumpDbfs: db(jump), startRmsDbfs: powerDb(meanSquare(audio, 0, edge)), endRmsDbfs: powerDb(meanSquare(audio, frames - edge, frames)) },
+    loop: { boundaryJumpDbfs: db(jump), boundaryStepDbfs: db(step), startRmsDbfs: powerDb(meanSquare(audio, 0, edge)), endRmsDbfs: powerDb(meanSquare(audio, frames - edge, frames)) },
   };
   if (report.rmsDbfs !== null && report.peakDbfs !== null) report.crestDb = Number((report.peakDbfs - report.rmsDbfs).toFixed(2));
   const signal = pitch || sections.some(s => s.pitch) ? mono(audio) : null;
@@ -288,6 +279,15 @@ export function analyze(audio, { sections = [], pitch = false } = {}) {
   return report;
 }
 
+// A loop join clicks when the first and last samples differ by more than -30 dBFS AND by clearly more than the waveform
+// moves between neighbouring samples at the ends. Loops that start on a drum hit differ by a lot but only as much as the
+// hit itself rises, so they are not flagged. Reports without boundaryStepDbfs fall back to the plain -30 dBFS rule.
+export function loopJoinClicks(loop) {
+  if (loop.boundaryJumpDbfs === null || loop.boundaryJumpDbfs === undefined || loop.boundaryJumpDbfs <= -30) return false;
+  if (loop.boundaryStepDbfs === null || loop.boundaryStepDbfs === undefined) return true; // flat ends (step 0) or an older report
+  return loop.boundaryJumpDbfs > loop.boundaryStepDbfs + 6;
+}
+
 // Plain-language warnings an agent can act on without listening.
 export function advise(report, { loop = false, targetLufs } = {}) {
   const notes = [];
@@ -297,11 +297,17 @@ export function advise(report, { loop = false, targetLufs } = {}) {
     notes.push(`Loudness is ${report.integratedLufs} LUFS against a ${targetLufs} LUFS target.`);
   }
   if (report.stereoCorrelation !== undefined && report.stereoCorrelation !== null && report.stereoCorrelation < 0.2) notes.push('Left and right are weakly correlated: the mix will thin out in mono.');
+  if (report.stereo?.monoCancels || report.stereo?.monoFoldDropDb > 6) {
+    notes.push('The mix loses substantial level when folded to mono: check stereo widening and polarity.');
+  }
+  if (report.stereo?.minWindowCorrelation < -0.3) {
+    notes.push('At least one passage has opposing left and right phase: check channel polarity and timing.');
+  }
   if (Math.abs(report.dcOffset) > 0.01) notes.push('There is a DC offset.');
   const bands = report.bandsDbfs;
   if (bands.lowMid !== null && bands.highMid !== null && bands.lowMid - bands.highMid > 18) notes.push('Low mids dominate the upper mids by more than 18 dB: the mix may sound muddy or dull.');
   if (bands.bass !== null && bands.mid !== null && bands.mid - bands.bass > 15) notes.push('Bass is more than 15 dB under the mids: the mix may sound thin.');
-  if (loop && report.loop.boundaryJumpDbfs !== null && report.loop.boundaryJumpDbfs > -30) notes.push('The first and last samples differ by more than -30 dBFS: expect a click at the loop point.');
+  if (loop && loopJoinClicks(report.loop)) notes.push('The first and last samples differ by more than -30 dBFS and by more than the audio moves at either end: expect a click at the loop point.');
   for (const section of report.sections ?? []) {
     if (section.rmsDbfs === null) notes.push(`Section "${section.name}" is silent.`);
     else if (section.stereoCorrelation !== undefined && section.stereoCorrelation !== null && section.stereoCorrelation < 0.2) {
@@ -375,6 +381,24 @@ export function limit(audio, ceilingDb = -1, { wrap = false } = {}) {
     sum += value(i + 1) - value(i - look);
   }
   return { audio, limitedSamples: reduced, maxReductionDb: Number((20 * Math.log10(lowest)).toFixed(2)) };
+}
+
+// Limit so that the 4x oversampled true peak, not just the sample peak, stays under the ceiling.
+// A sample-peak limiter at -1 dB leaves inter-sample peaks near -0.3 dBTP. Each pass lowers the sample ceiling by the overshoot.
+export function limitTruePeak(audio, ceilingDb = -1, { wrap = false, passes = 4 } = {}) {
+  const tolerance = 0.005; // dB
+  let sampleCeiling = ceilingDb;
+  let result = limit(audio, sampleCeiling, { wrap });
+  let truePeakDb = db(truePeak(audio));
+  let limitedSamples = result.limitedSamples, maxReductionDb = result.maxReductionDb;
+  for (let pass = 0; pass < passes && truePeakDb !== null && truePeakDb > ceilingDb + tolerance; pass++) {
+    sampleCeiling -= truePeakDb - ceilingDb + 0.01;
+    result = limit(audio, sampleCeiling, { wrap });
+    limitedSamples = Math.max(limitedSamples, result.limitedSamples);
+    maxReductionDb = Math.min(maxReductionDb, result.maxReductionDb);
+    truePeakDb = db(truePeak(audio));
+  }
+  return { audio, limitedSamples, maxReductionDb, truePeakDb, sampleCeilingDb: Number(sampleCeiling.toFixed(2)) };
 }
 
 // --- spectrogram PNG ---

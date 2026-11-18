@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rmdir, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,8 +11,11 @@ import {
 } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { TOOL_CONTRACTS } from "../src/server.js";
 
-async function connect(writes: boolean) {
-  const root = await mkdtemp(path.join(os.tmpdir(), "reaper-protocol-"));
+// @ts-ignore Source-attributed vendored JS, tested through the built entry point.
+import { encodeWav } from "../../vendor/lmms-mcp/audio.mjs";
+
+async function connect(writes: boolean, root?: string) {
+  root ??= await mkdtemp(path.join(os.tmpdir(), "reaper-protocol-"));
   const client = new Client({ name: "reaper-test", version: "1.0.0" });
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -114,6 +117,41 @@ test("scripted agent session creates notes, edits tempo and saves/reopens RPP", 
     assert.equal(tempo.mode, "offline");
     const tracks = await invoke("reaper_get", { path: "/tracks" });
     assert.equal((tracks.result as unknown[]).length, 1);
+  } finally {
+    await client.close();
+  }
+});
+
+test("real stdio analysis reports loudness range and mono cancellation", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "reaper-meters-"));
+  const wav = path.join(root, "meters.wav");
+  const sampleRate = 48000;
+  const high = 10 ** (-20 / 20);
+  const low = 10 ** (-30 / 20);
+  const left = Float32Array.from(
+    { length: sampleRate * 40 },
+    (_, i) =>
+      (i < sampleRate * 20 ? high : low) * Math.sin(2 * Math.PI * 997 * i / sampleRate),
+  );
+  const right = left.map((sample) => -sample);
+  await writeFile(wav, encodeWav({ sampleRate, channels: [left, right] }));
+  t.after(async () => {
+    await unlink(wav);
+    await rmdir(root);
+  });
+  const client = await connect(false, root);
+  try {
+    const result = await client.callTool({
+      name: "reaper_analyze",
+      arguments: { mode: "offline", file: "meters.wav" },
+    });
+    assert.notEqual(result.isError, true, JSON.stringify(result));
+    const report = (result.structuredContent as {
+      result: { lraLu: number; stereoCorrelation: number; stereo: { monoCancels: boolean } };
+    }).result;
+    assert.ok(Math.abs(report.lraLu - 10) <= 1);
+    assert.equal(report.stereoCorrelation, -1);
+    assert.equal(report.stereo.monoCancels, true);
   } finally {
     await client.close();
   }

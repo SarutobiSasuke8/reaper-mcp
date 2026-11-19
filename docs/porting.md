@@ -6,7 +6,7 @@ Additional ReaScript capability gaps (from 2026-11-16 07:45 amendment to lingxi-
 
 | Module | Source | State | Evidence / follow-up |
 |---|---|---|---|
-| audio.mjs | lmms-mcp, last-modifying SHA `364799c23f7c271d5b0de352935d759230c5ec39` | vendored unchanged | Used by analysis and render probe; source licence included |
+| audio.mjs | lmms-mcp, source SHA `55faafe0286b8c3bb051ea1e99b818dfb09fdb8b` | vendored unchanged | Includes dynamic range, LRA and stereo measurements; byte-preserved source and licence included |
 | House tool contracts, errors, stdio tests, tsconfig | MCP server template `6e6ba1ce9e2d42fb2f3ce95f80a9964b78938fb4` | adapted | SDK 1.32.2 preserves LMMS stack and Node 20/22 support |
 | Song model and RPP parser/writer | new TypeScript | initial subset | Fixtures cover audio, MIDI notes, tempo/meter, explicit sends, JSFX and markers/regions |
 | REAPER backend experiment in lmms-mcp | no such open PR found during intake | not copied | Prior comparison evidence reused; no lmms-mcp source changed |

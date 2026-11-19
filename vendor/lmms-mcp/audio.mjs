@@ -1,3 +1,91 @@
+function nzero(x) {
+  return x === 0 ? 0 : x;
+}
+
+function round2(x) {
+  if (x === null) return null;
+  const r = Math.round(x * 100) / 100;
+  return nzero(Number.isFinite(r) ? r : null);
+}
+
+function channelDr(samples, blockLength) {
+  const n = samples.length;
+  if (n === 0 || blockLength <= 0) return null;
+
+  const peaks = [];
+  const rmses = [];
+
+  for (let start = 0; start < n; start += blockLength) {
+    const end = Math.min(start + blockLength, n);
+    const len = end - start;
+    let sumSq = 0;
+    let peak = 0;
+    for (let i = start; i < end; i++) {
+      const x = samples[i];
+      sumSq += x * x;
+      const ax = Math.abs(x);
+      if (ax > peak) peak = ax;
+    }
+    peaks.push(peak);
+    rmses.push(Math.sqrt((2 * sumSq) / len));
+  }
+
+  if (peaks.length === 0) return null;
+
+  const sortedPeaks = peaks.slice().sort((a, b) => b - a);
+  const pk2 = sortedPeaks.length === 1 ? sortedPeaks[0] : sortedPeaks[1];
+
+  const k = Math.max(1, Math.round(peaks.length * 0.2));
+  const sortedRms = rmses.slice().sort((a, b) => b - a);
+  let meanRmsSq = 0;
+  for (let i = 0; i < k; i++) {
+    const r = sortedRms[i];
+    meanRmsSq += r * r;
+  }
+  meanRmsSq /= k;
+  const rms20 = Math.sqrt(meanRmsSq);
+
+  if (pk2 === 0 || rms20 === 0) return null;
+
+  const dr = 20 * Math.log10(pk2 / rms20);
+  if (!Number.isFinite(dr)) return null;
+  return nzero(dr);
+}
+
+export function dynamicRange({ sampleRate, channels }) {
+  const chans = Array.isArray(channels) ? channels : [];
+  const blockLength = Math.round(Number(sampleRate) * 3);
+  const firstLen = chans.length > 0 && chans[0] != null ? chans[0].length : 0;
+  const blockCount =
+    firstLen === 0 || !(blockLength > 0) ? 0 : Math.ceil(firstLen / blockLength);
+
+  const unrounded = chans.map((ch) =>
+    ch == null ? null : channelDr(ch, blockLength),
+  );
+  const drPerChannel = unrounded.map((v) => (v === null ? null : round2(v)));
+
+  const valid = unrounded.filter((v) => v !== null);
+  if (valid.length === 0) {
+    return {
+      drPerChannel,
+      drMean: null,
+      dr: null,
+      blockCount,
+    };
+  }
+
+  const mean = valid.reduce((a, b) => a + b, 0) / valid.length;
+  const drMean = round2(mean);
+  const dr = nzero(Math.round(mean));
+
+  return {
+    drPerChannel,
+    drMean: drMean === null || !Number.isFinite(drMean) ? null : drMean,
+    dr: Number.isFinite(dr) ? dr : null,
+    blockCount,
+  };
+}
+
 // WAV I/O, measurement and offline mastering helpers. Pure JavaScript, no native dependencies.
 import { deflateSync } from 'node:zlib';
 import { kWeight } from './k-weight.mjs';
@@ -257,7 +345,7 @@ export function analyze(audio, { sections = [], pitch = false } = {}) {
   const { lraLu } = loudnessRangeFromWeighted(sampleRate, weighted);
   const report = {
     sampleRate, channels: audio.channels.length, durationSeconds: Number((frames / sampleRate).toFixed(4)),
-    ...integratedLoudness(audio, weighted), lraLu, stereo: stereoImage(audio), truePeakDbfs: db(truePeak(audio)), ...levels(audio, 0, frames),
+    ...integratedLoudness(audio, weighted), lraLu, stereo: stereoImage(audio), dynamicRange: dynamicRange(audio), truePeakDbfs: db(truePeak(audio)), ...levels(audio, 0, frames),
     clippedSamples: clipped, dcOffset: Number((dc / (frames * audio.channels.length)).toFixed(5)),
     ...spectrum(audio),
     loop: { boundaryJumpDbfs: db(jump), boundaryStepDbfs: db(step), startRmsDbfs: powerDb(meanSquare(audio, 0, edge)), endRmsDbfs: powerDb(meanSquare(audio, frames - edge, frames)) },
@@ -291,6 +379,7 @@ export function loopJoinClicks(loop) {
 // Plain-language warnings an agent can act on without listening.
 export function advise(report, { loop = false, targetLufs } = {}) {
   const notes = [];
+  if (report.dynamicRange?.dr != null && report.dynamicRange.dr < 6) notes.push("Dynamic range is under DR6: the master is likely over-compressed or over-limited; ease the limiter or bus compression.");
   if (report.clippedSamples > 0) notes.push(`${report.clippedSamples} samples are at full scale: lower track or master volume, or add a limiter.`);
   if (report.truePeakDbfs !== null && report.truePeakDbfs > -1 && !report.clippedSamples) notes.push('True peak is above -1 dBFS: lossy encoders may clip it.');
   if (report.integratedLufs !== null && targetLufs !== undefined && Math.abs(report.integratedLufs - targetLufs) > 1.5) {

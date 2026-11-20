@@ -329,7 +329,7 @@ function levels(audio, start, end) {
   return result;
 }
 
-export function analyze(audio, { sections = [], pitch = false } = {}) {
+export function analyze(audio, { sections = [], pitch = false, expectedBpm } = {}) {
   const { sampleRate, frames } = audio;
   let clipped = 0, dc = 0;
   for (const ch of audio.channels) for (const v of ch) { dc += v; if (v >= 32767 / 32768 || v <= -1) clipped++; }
@@ -343,7 +343,15 @@ export function analyze(audio, { sections = [], pitch = false } = {}) {
   for (const ch of audio.channels) for (let i = 1; i <= near; i++) step = Math.max(step, Math.abs(ch[i] - ch[i - 1]), Math.abs(ch[frames - i] - ch[frames - i - 1]));
   const weighted = audio.channels.map(ch => kWeight(ch, sampleRate));
   const { lraLu } = loudnessRangeFromWeighted(sampleRate, weighted);
+  const estimate = estimateTempo(audio);
+  const tempo = { bpm: estimate.bpm, confidence: estimate.confidence };
+  if (expectedBpm !== undefined) {
+    tempo.expectedBpm = expectedBpm;
+    tempo.match = tempo.bpm === null ? null : [expectedBpm, expectedBpm * 2, expectedBpm / 2]
+      .some(bpm => Math.abs(tempo.bpm - bpm) <= 1);
+  }
   const report = {
+    tempo,
     sampleRate, channels: audio.channels.length, durationSeconds: Number((frames / sampleRate).toFixed(4)),
     ...integratedLoudness(audio, weighted), lraLu, stereo: stereoImage(audio), dynamicRange: dynamicRange(audio), truePeakDbfs: db(truePeak(audio)), ...levels(audio, 0, frames),
     clippedSamples: clipped, dcOffset: Number((dc / (frames * audio.channels.length)).toFixed(5)),
@@ -379,6 +387,7 @@ export function loopJoinClicks(loop) {
 // Plain-language warnings an agent can act on without listening.
 export function advise(report, { loop = false, targetLufs } = {}) {
   const notes = [];
+  if (report.tempo?.match === false) notes.push(`Detected tempo (${report.tempo.bpm} BPM) does not match the requested ${report.tempo.expectedBpm} BPM: check the project tempo and the drum pattern grid.`);
   if (report.dynamicRange?.dr != null && report.dynamicRange.dr < 6) notes.push("Dynamic range is under DR6: the master is likely over-compressed or over-limited; ease the limiter or bus compression.");
   if (report.clippedSamples > 0) notes.push(`${report.clippedSamples} samples are at full scale: lower track or master volume, or add a limiter.`);
   if (report.truePeakDbfs !== null && report.truePeakDbfs > -1 && !report.clippedSamples) notes.push('True peak is above -1 dBFS: lossy encoders may clip it.');
@@ -531,4 +540,117 @@ export function spectrogramPng(audio, { width = 960, height = 360, lowHz = 40, h
   header.set([8, 2, 0, 0, 0], 8);
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header),
     chunk('IDAT', deflateSync(Buffer.concat(rows))), chunk('IEND', Buffer.alloc(0))]);
+}
+
+// GBV tempo estimator: maths preserved from lingxi-gbv-20261119-01.
+export function estimateTempo(
+  { sampleRate, channels },
+  { minBpm = 70, maxBpm = 180, hop = 256 } = {},
+) {
+  const n = channels && channels.length > 0 ? channels[0].length : 0;
+  const frames = Math.floor(n / hop);
+  const fr = sampleRate / hop;
+  const out = {
+    bpm: null,
+    confidence: 0,
+    frameRate: Number(fr.toFixed(4)),
+    onsetFrames: frames,
+  };
+  if (frames < 2) return out;
+
+  const nCh = channels.length;
+  const e = new Float64Array(frames);
+  for (let k = 0; k < frames; k++) {
+    const start = k * hop;
+    const end = start + hop;
+    let sum = 0;
+    for (let i = start; i < end; i++) {
+      const m =
+        nCh === 1
+          ? channels[0][i]
+          : (channels[0][i] + channels[1][i]) * 0.5;
+      sum += m * m;
+    }
+    e[k] = sum;
+  }
+
+  const d = new Float64Array(frames);
+  d[0] = 0;
+  for (let k = 1; k < frames; k++) {
+    d[k] = e[k] > 1.1 * e[k - 1] ? e[k] - e[k - 1] : 0;
+  }
+
+  const o = new Float64Array(frames);
+  for (let k = 0; k < frames; k++) {
+    const prev = k > 0 ? d[k - 1] : 0;
+    const next = k + 1 < frames ? d[k + 1] : 0;
+    o[k] = 0.5 * d[k] + 0.25 * prev + 0.25 * next;
+  }
+
+  const lo = Math.max(1, Math.floor((fr * 60) / maxBpm));
+  const hi = Math.min(frames - 1, Math.ceil((fr * 60) / minBpm));
+  let ac0 = 0;
+  for (let k = 0; k < frames; k++) ac0 += o[k] * o[k];
+  if (ac0 === 0 || hi <= lo) return out;
+
+  function ac(L) {
+    if (L <= 0 || L >= frames) return 0;
+    const count = frames - L;
+    let sum = 0;
+    for (let k = 0; k < count; k++) sum += o[k] * o[k + L];
+    return sum / count;
+  }
+
+  let best = lo;
+  let bestV = ac(lo);
+  for (let L = lo + 1; L <= hi; L++) {
+    const v = ac(L);
+    if (v > bestV) {
+      best = L;
+      bestV = v;
+    }
+  }
+  if (!(bestV > 0)) return out;
+
+  const half = Math.round(best / 2);
+  if (half - 1 >= lo) {
+    let oct = half;
+    let octV = ac(half);
+    const left = ac(half - 1);
+    if (left > octV) {
+      oct = half - 1;
+      octV = left;
+    }
+    const right = ac(half + 1);
+    if (right > octV) {
+      oct = half + 1;
+      octV = right;
+    }
+    if (octV >= 0.5 * bestV) {
+      best = oct;
+      bestV = octV;
+    }
+  }
+
+  let lag = best;
+  if (lo < best && best < hi) {
+    const a = ac(best - 1);
+    const b = bestV;
+    const c = ac(best + 1);
+    const den = a - 2 * b + c;
+    if (den < 0) {
+      const refined = best + 0.5 * (a - c) / den;
+      if (Number.isFinite(refined) && refined > 0) lag = refined;
+    }
+  }
+
+  if (!(lag > 0) || !Number.isFinite(lag)) return out;
+
+  const bpm = 60 * fr / lag;
+  const confidence = Math.min(1, bestV / (ac0 / frames));
+  const bpmOut = Number(bpm.toFixed(1));
+  const confOut = Number(confidence.toFixed(3));
+  out.bpm = Number.isFinite(bpmOut) ? bpmOut : null;
+  out.confidence = Number.isFinite(confOut) ? confOut : 0;
+  return out;
 }

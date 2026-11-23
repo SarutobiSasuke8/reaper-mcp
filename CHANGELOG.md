@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Vendor key and Camelot analysis from LMMS MCP, with requested-key compatibility regression coverage.
+
 ## 0.1.0-alpha.4 - GitHub alpha published 2026-11-16
 
 - Added explicit system-output versus dummy-audio configuration for new managed profiles; startup requests hidden windows by default.

@@ -329,7 +329,8 @@ function levels(audio, start, end) {
   return result;
 }
 
-export function analyze(audio, { sections = [], pitch = false, expectedBpm } = {}) {
+export function analyze(audio, { sections = [], pitch = false, expectedBpm, expectedKey } = {}) {
+  const expectedCamelot = expectedKey === undefined ? undefined : parseExpectedKey(expectedKey);
   const { sampleRate, frames } = audio;
   let clipped = 0, dc = 0;
   for (const ch of audio.channels) for (const v of ch) { dc += v; if (v >= 32767 / 32768 || v <= -1) clipped++; }
@@ -350,7 +351,19 @@ export function analyze(audio, { sections = [], pitch = false, expectedBpm } = {
     tempo.match = tempo.bpm === null ? null : [expectedBpm, expectedBpm * 2, expectedBpm / 2]
       .some(bpm => Math.abs(tempo.bpm - bpm) <= 1);
   }
+  const estimatedKey = estimateKey(audio);
+  const key = Object.fromEntries(['key', 'tonic', 'mode', 'camelot', 'confidence', 'margin'].map(field => [field, estimatedKey[field]]));
+  if (expectedCamelot !== undefined) {
+    key.expectedCamelot = expectedCamelot;
+    key.match = key.key === null ? null : key.camelot === expectedCamelot;
+    const actualNumber = Number.parseInt(key.camelot, 10);
+    const expectedNumber = Number.parseInt(expectedCamelot, 10);
+    const distance = Math.abs(actualNumber - expectedNumber);
+    key.compatible = key.key === null ? null : actualNumber === expectedNumber ||
+      (key.camelot.at(-1) === expectedCamelot.at(-1) && (distance === 1 || distance === 11));
+  }
   const report = {
+    key,
     tempo,
     sampleRate, channels: audio.channels.length, durationSeconds: Number((frames / sampleRate).toFixed(4)),
     ...integratedLoudness(audio, weighted), lraLu, stereo: stereoImage(audio), dynamicRange: dynamicRange(audio), truePeakDbfs: db(truePeak(audio)), ...levels(audio, 0, frames),
@@ -387,6 +400,7 @@ export function loopJoinClicks(loop) {
 // Plain-language warnings an agent can act on without listening.
 export function advise(report, { loop = false, targetLufs } = {}) {
   const notes = [];
+  if (report.key?.compatible === false) notes.push(`Detected key (${report.key.key}, Camelot ${report.key.camelot}) does not match the requested ${report.key.expectedCamelot}: check the project key, the bass line and the chord pattern.`);
   if (report.tempo?.match === false) notes.push(`Detected tempo (${report.tempo.bpm} BPM) does not match the requested ${report.tempo.expectedBpm} BPM: check the project tempo and the drum pattern grid.`);
   if (report.dynamicRange?.dr != null && report.dynamicRange.dr < 6) notes.push("Dynamic range is under DR6: the master is likely over-compressed or over-limited; ease the limiter or bus compression.");
   if (report.clippedSamples > 0) notes.push(`${report.clippedSamples} samples are at full scale: lower track or master volume, or add a limiter.`);
@@ -653,4 +667,154 @@ export function estimateTempo(
   out.bpm = Number.isFinite(bpmOut) ? bpmOut : null;
   out.confidence = Number.isFinite(confOut) ? confOut : 0;
   return out;
+}
+
+// GBV key estimator: maths preserved from lingxi-gbv-20261120-01.
+export function camelot(tonic, mode) {
+  const t = mode === 'minor' ? (tonic + 3) % 12 : tonic;
+  return String(((7 * t) % 12 + 7) % 12 + 1) + (mode === 'minor' ? 'A' : 'B');
+}
+
+function pearson(x, y) {
+  const n = 12;
+  let mx = 0;
+  let my = 0;
+  for (let i = 0; i < n; i++) {
+    mx += x[i];
+    my += y[i];
+  }
+  mx /= n;
+  my /= n;
+  let num = 0;
+  let dx2 = 0;
+  let dy2 = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = x[i] - mx;
+    const dy = y[i] - my;
+    num += dx * dy;
+    dx2 += dx * dx;
+    dy2 += dy * dy;
+  }
+  if (dx2 === 0 || dy2 === 0) return 0;
+  const r = num / Math.sqrt(dx2 * dy2);
+  return Number.isFinite(r) ? r : 0;
+}
+
+function clamp01(v) {
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
+}
+
+export function estimateKey(
+  { sampleRate, channels },
+  { frame = 4096, hop = 2048, minMidi = 36, maxMidi = 95 } = {},
+) {
+  const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+  const MIN = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+  const chroma = new Float64Array(12);
+  const out = {
+    key: null,
+    tonic: null,
+    mode: null,
+    camelot: null,
+    confidence: 0,
+    margin: 0,
+    frames: 0,
+    chroma: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  };
+  const nch = channels && channels.length ? channels.length : 0;
+  const n = nch ? channels[0].length : 0;
+  if (n === 0 || frame < 2) return out;
+
+  const w = new Float64Array(frame);
+  const denom = frame - 1;
+  for (let i = 0; i < frame; i++) {
+    w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / denom);
+  }
+  const x = new Float64Array(frame);
+  const nyquist = sampleRate / 2;
+  let frames = 0;
+  for (let s = 0; s + frame <= n; s += hop) {
+    frames += 1;
+    for (let i = 0; i < frame; i++) {
+      let acc = 0;
+      for (let c = 0; c < nch; c++) acc += channels[c][s + i];
+      x[i] = (acc / nch) * w[i];
+    }
+    for (let midi = minMidi; midi <= maxMidi; midi++) {
+      const f = 440 * Math.pow(2, (midi - 69) / 12);
+      if (f >= nyquist) continue;
+      const coeff = 2 * Math.cos((2 * Math.PI * f) / sampleRate);
+      let s1 = 0;
+      let s2 = 0;
+      for (let i = 0; i < frame; i++) {
+        const s0 = x[i] + coeff * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+      }
+      const p = s1 * s1 + s2 * s2 - coeff * s1 * s2;
+      chroma[midi % 12] += Math.sqrt(Math.max(0, p));
+    }
+  }
+  out.frames = frames;
+
+  let total = 0;
+  for (let i = 0; i < 12; i++) total += chroma[i];
+  if (!(total > 1e-9)) return out;
+
+  const norm = new Float64Array(12);
+  for (let i = 0; i < 12; i++) norm[i] = chroma[i] / total;
+  out.chroma = Array.from(norm, (v) => Number(v.toFixed(4)));
+
+  let bestR = -Infinity;
+  let secondR = -Infinity;
+  let bestT = 0;
+  let bestMode = 'major';
+  const rot = new Float64Array(12);
+  const modes = ['major', 'minor'];
+  for (let mi = 0; mi < modes.length; mi++) {
+    const mode = modes[mi];
+    const profile = mode === 'major' ? MAJ : MIN;
+    for (let t = 0; t < 12; t++) {
+      for (let i = 0; i < 12; i++) rot[i] = norm[(t + i) % 12];
+      const r = pearson(rot, profile);
+      if (r > bestR) {
+        secondR = bestR;
+        bestR = r;
+        bestT = t;
+        bestMode = mode;
+      } else if (r > secondR) {
+        secondR = r;
+      }
+    }
+  }
+
+  const tonicName = NAMES[bestT];
+  out.tonic = tonicName;
+  out.mode = bestMode;
+  out.key = tonicName + ' ' + bestMode;
+  out.camelot = camelot(bestT, bestMode);
+  out.confidence = Number(clamp01(bestR).toFixed(3));
+  let margin = bestR - secondR;
+  if (!Number.isFinite(margin)) margin = 0;
+  out.margin = Number(margin.toFixed(3));
+  if (!Number.isFinite(out.confidence)) out.confidence = 0;
+  if (!Number.isFinite(out.margin)) out.margin = 0;
+  return out;
+}
+
+function parseExpectedKey(value) {
+  if (typeof value === 'string') {
+    const code = /^(1[0-2]|[1-9])([ab])$/i.exec(value.trim());
+    if (code) return code[1] + code[2].toUpperCase();
+    const name = /^([a-g])([#b]?)\s+(major|minor)$/i.exec(value.trim());
+    if (name) {
+      const natural = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 }[name[1].toLowerCase()];
+      const accidental = name[2] === '#' ? 1 : name[2].toLowerCase() === 'b' ? -1 : 0;
+      return camelot((natural + accidental + 12) % 12, name[3].toLowerCase());
+    }
+  }
+  throw new RangeError('expectedKey must be a tonic and major/minor mode (for example F# minor) or Camelot code (1A to 12B)');
 }

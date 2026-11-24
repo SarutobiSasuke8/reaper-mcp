@@ -329,7 +329,8 @@ function levels(audio, start, end) {
   return result;
 }
 
-export function analyze(audio, { sections = [], pitch = false, expectedBpm, expectedKey } = {}) {
+export function analyze(audio, { sections = [], pitch = false, expectedBpm, expectedKey, expectedSwing } = {}) {
+  const requestedSwing = expectedSwing === undefined ? undefined : parseExpectedSwing(expectedSwing);
   const expectedCamelot = expectedKey === undefined ? undefined : parseExpectedKey(expectedKey);
   const { sampleRate, frames } = audio;
   let clipped = 0, dc = 0;
@@ -362,7 +363,16 @@ export function analyze(audio, { sections = [], pitch = false, expectedBpm, expe
     key.compatible = key.key === null ? null : actualNumber === expectedNumber ||
       (key.camelot.at(-1) === expectedCamelot.at(-1) && (distance === 1 || distance === 11));
   }
+  const onset = detectOnsets(audio);
+  const swing = swingRatio(onset.onsets, expectedBpm === undefined ? tempo.bpm : expectedBpm);
+  const rhythm = { onsetCount: onset.count, density: onset.density, meanIoi: onset.meanIoi,
+    swing: swing.ratio, offbeats: swing.offbeats };
+  if (requestedSwing !== undefined) {
+    rhythm.expectedSwing = requestedSwing;
+    rhythm.swingMatch = swing.ratio === null ? null : Math.abs(swing.ratio - requestedSwing) <= 0.25;
+  }
   const report = {
+    rhythm,
     key,
     tempo,
     sampleRate, channels: audio.channels.length, durationSeconds: Number((frames / sampleRate).toFixed(4)),
@@ -400,6 +410,7 @@ export function loopJoinClicks(loop) {
 // Plain-language warnings an agent can act on without listening.
 export function advise(report, { loop = false, targetLufs } = {}) {
   const notes = [];
+  if (report.rhythm?.swingMatch === false) notes.push(`Detected swing ratio (${report.rhythm.swing}) does not match the requested ${report.rhythm.expectedSwing}: check the groove swing setting and the humanise amount.`);
   if (report.key?.compatible === false) notes.push(`Detected key (${report.key.key}, Camelot ${report.key.camelot}) does not match the requested ${report.key.expectedCamelot}: check the project key, the bass line and the chord pattern.`);
   if (report.tempo?.match === false) notes.push(`Detected tempo (${report.tempo.bpm} BPM) does not match the requested ${report.tempo.expectedBpm} BPM: check the project tempo and the drum pattern grid.`);
   if (report.dynamicRange?.dr != null && report.dynamicRange.dr < 6) notes.push("Dynamic range is under DR6: the master is likely over-compressed or over-limited; ease the limiter or bus compression.");
@@ -817,4 +828,171 @@ function parseExpectedKey(value) {
     }
   }
   throw new RangeError('expectedKey must be a tonic and major/minor mode (for example F# minor) or Camelot code (1A to 12B)');
+}
+
+// GBV SuperFlux-style detector: maths preserved from lingxi-gbv-20261123-01.
+function isPowerOfTwo(n) {
+  return Number.isInteger(n) && n >= 1 && (n & (n - 1)) === 0;
+}
+
+function fftRadix2(re, im) {
+  const n = re.length;
+  let j = 0;
+  for (let i = 0; i < n; i++) {
+    if (i < j) {
+      const tr = re[i]; re[i] = re[j]; re[j] = tr;
+      const ti = im[i]; im[i] = im[j]; im[j] = ti;
+    }
+    let m = n >> 1;
+    while (m >= 1 && j >= m) {
+      j -= m;
+      m >>= 1;
+    }
+    j += m;
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len;
+    const wlenRe = Math.cos(ang);
+    const wlenIm = Math.sin(ang);
+    const half = len >> 1;
+    for (let i = 0; i < n; i += len) {
+      let wRe = 1;
+      let wIm = 0;
+      for (let k = 0; k < half; k++) {
+        const i0 = i + k;
+        const i1 = i0 + half;
+        const vr = re[i1] * wRe - im[i1] * wIm;
+        const vi = re[i1] * wIm + im[i1] * wRe;
+        const ur = re[i0];
+        const ui = im[i0];
+        re[i0] = ur + vr;
+        im[i0] = ui + vi;
+        re[i1] = ur - vr;
+        im[i1] = ui - vi;
+        const nwRe = wRe * wlenRe - wIm * wlenIm;
+        wIm = wRe * wlenIm + wIm * wlenRe;
+        wRe = nwRe;
+      }
+    }
+  }
+}
+
+function median(values) {
+  const a = values.slice().sort((x, y) => x - y);
+  const n = a.length;
+  const mid = n >> 1;
+  if (n % 2 === 1) return a[mid];
+  return (a[mid - 1] + a[mid]) / 2;
+}
+
+export function detectOnsets({ sampleRate, channels }, { frame = 1024, hop = 256, delta = 0.1 } = {}) {
+  if (!isPowerOfTwo(frame)) throw new RangeError('frame must be a power of two');
+
+  const out = { onsets: [], count: 0, density: 0, meanIoi: null, frames: 0 };
+  const n = channels && channels.length ? channels[0].length : 0;
+  const nCh = channels && channels.length ? channels.length : 0;
+  const nBins = (frame >> 1) + 1;
+
+  const w = new Float64Array(frame);
+  const denom = frame - 1;
+  for (let i = 0; i < frame; i++) w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / denom);
+
+  const re = new Float64Array(frame);
+  const im = new Float64Array(frame);
+  const L = new Float64Array(nBins);
+  const Lprev = new Float64Array(nBins);
+  const flux = [];
+  let hasPrev = false;
+
+  for (let s = 0; s + frame <= n; s += hop) {
+    im.fill(0);
+    for (let i = 0; i < frame; i++) {
+      let acc = 0;
+      for (let c = 0; c < nCh; c++) acc += channels[c][s + i];
+      re[i] = (acc / nCh) * w[i];
+    }
+    fftRadix2(re, im);
+    for (let k = 0; k < nBins; k++) L[k] = Math.log1p(100 * Math.hypot(re[k], im[k]));
+
+    let f = 0;
+    if (hasPrev) {
+      for (let k = 0; k < nBins; k++) {
+        let mx = Lprev[k];
+        if (k > 0) mx = mx > Lprev[k - 1] ? mx : Lprev[k - 1];
+        if (k + 1 < nBins) mx = mx > Lprev[k + 1] ? mx : Lprev[k + 1];
+        const d = L[k] - mx;
+        if (d > 0) f += d;
+      }
+    }
+    flux.push(f);
+    Lprev.set(L);
+    hasPrev = true;
+  }
+
+  out.frames = flux.length;
+  let maxFlux = 0;
+  for (let t = 0; t < flux.length; t++) if (flux[t] > maxFlux) maxFlux = flux[t];
+  if (!(maxFlux > 1e-9)) return out;
+
+  const nf = new Float64Array(flux.length);
+  for (let t = 0; t < flux.length; t++) nf[t] = flux[t] / maxFlux;
+
+  let lastOnsetFrame = -1e9;
+  for (let t = 1; t < nf.length; t++) {
+    if (!(nf[t] > 0)) continue;
+    if (t - lastOnsetFrame < 3) continue;
+
+    const loP = t - 3 < 0 ? 0 : t - 3;
+    const hiP = t + 3 > nf.length - 1 ? nf.length - 1 : t + 3;
+    let isPeak = true;
+    for (let j = loP; j <= hiP; j++) {
+      if (nf[j] > nf[t]) { isPeak = false; break; }
+    }
+    if (!isPeak) continue;
+
+    const loM = t - 10 < 0 ? 0 : t - 10;
+    const hiM = t + 10 > nf.length - 1 ? nf.length - 1 : t + 10;
+    let sum = 0;
+    for (let j = loM; j <= hiM; j++) sum += nf[j];
+    const mean = sum / (hiM - loM + 1);
+    if (!(nf[t] >= mean + delta)) continue;
+
+    lastOnsetFrame = t;
+    out.onsets.push(Number(((t * hop + frame / 2) / sampleRate).toFixed(4)));
+  }
+
+  out.count = out.onsets.length;
+  const duration = n / sampleRate;
+  out.density = Number((out.count / duration).toFixed(3));
+  if (out.count >= 2) {
+    out.meanIoi = Number(((out.onsets[out.count - 1] - out.onsets[0]) / (out.count - 1)).toFixed(4));
+  }
+  return out;
+}
+
+export function swingRatio(times, bpm) {
+  const out = { ratio: null, offbeats: 0 };
+  if (!Array.isArray(times) || times.length < 2 || !(bpm > 0)) return out;
+
+  const beat = 60 / bpm;
+  const t0 = times[0];
+  const kept = [];
+  for (let i = 0; i < times.length; i++) {
+    const p = (times[i] - t0) / beat;
+    const f = p - Math.floor(p);
+    if (f > 0.2 && f < 0.8) kept.push(f);
+  }
+  if (kept.length === 0) return out;
+
+  const m = median(kept);
+  out.offbeats = kept.length;
+  out.ratio = Number((m / (1 - m)).toFixed(3));
+  return out;
+}
+
+function parseExpectedSwing(value) {
+  if (value === 'straight') return 1;
+  if (value === 'triplet') return 2;
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  throw new RangeError('expectedSwing must be a finite number > 0, "straight" or "triplet"');
 }

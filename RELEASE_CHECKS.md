@@ -1,3 +1,7 @@
+# Windows alpha.6 release scope
+
+Windows-only local stdio package for Node.js 20 or 22. See the [installation guide](docs/install-windows.md) and [changelog](CHANGELOG.md) for the current version. The alpha.4 checks below are historical.
+
 # Windows alpha.4 release readiness
 
 Current checkpoint, 2026-11-16. Supersedes the historical checkpoints below.

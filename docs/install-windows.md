@@ -2,18 +2,22 @@
 
 Requires Windows 10/11, Node 20 or 22, and REAPER installed separately. An MCP client such as Codex supplies the agent interface. No SWS, ReaPack or Python is required.
 
-## Install a release tarball
-
-Download the reviewed `.tgz` release artifact. Before npm publication, do not use an unverified `npx` package name.
+## Install from npm
 
 ```powershell
-npm install --prefix "$env:LOCALAPPDATA/ReaperMCP/app" ./sarutobi-sasuke-reaper-mcp-0.1.0-alpha.4.tgz --ignore-scripts
-New-Item -ItemType Directory -Force "$env:LOCALAPPDATA/ReaperMCP/workspace"
+npm install --prefix "$env:LOCALAPPDATA/ReaperMCP/app" @sarutobi-sasuke/reaper-mcp@0.1.0-alpha.6 --ignore-scripts
 ```
 
-Register Codex, using absolute paths:
+To install from GitHub instead, download the tarball from the [Windows alpha release](https://github.com/SarutobiSasuke8/reaper-mcp/releases/tag/v0.1.0-alpha.6) and verify it against the release checksum.
 
 ```powershell
+npm install --prefix "$env:LOCALAPPDATA/ReaperMCP/app" ./sarutobi-sasuke-reaper-mcp-0.1.0-alpha.6.tgz --ignore-scripts
+```
+
+Create the workspace and register Codex using absolute paths. This example enables writes and managed REAPER startup.
+
+```powershell
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA/ReaperMCP/workspace"
 codex mcp add reaper --env "REAPER_MCP_WORKSPACE=$env:LOCALAPPDATA/ReaperMCP/workspace" --env REAPER_MCP_ALLOW_WRITES=true --env REAPER_MCP_AUTOSTART=true --env REAPER_MCP_AUDIO_MODE=dummy -- node "$env:LOCALAPPDATA/ReaperMCP/app/node_modules/@sarutobi-sasuke/reaper-mcp/dist/src/stdio.js"
 ```
 

@@ -2,7 +2,7 @@
 
 An agent-first MCP server for [REAPER](https://www.reaper.fm/), built by Alexei Udall.
 
-**Status: Windows public alpha, 0.1.0-alpha.4.** [Download the GitHub prerelease](https://github.com/SarutobiSasuke8/reaper-mcp/releases/tag/v0.1.0-alpha.4). npm publication is pending authentication.
+**Windows public alpha `0.1.0-alpha.6`.** Install from [npm](https://www.npmjs.com/package/@sarutobi-sasuke/reaper-mcp/v/0.1.0-alpha.6) or download the [GitHub prerelease](https://github.com/SarutobiSasuke8/reaper-mcp/releases/tag/v0.1.0-alpha.6).
 
 Compose native MIDI tracks, insert configured instruments, shape CC dynamics and keyswitch articulations, save projects and render audio through 14 MCP tools. Offline workflows also support a conservative RPP subset, MIDI/WAV import, mix/stem/region rendering and audio measurements.
 
@@ -17,12 +17,24 @@ See [Windows setup](docs/install-windows.md), [architecture](docs/architecture.m
 
 RPP conversion currently supports audio items, MIDI notes, step tempo changes, explicit sends, JSFX references and markers/regions. Unknown structures fail explicitly; existing complex DAW projects are not safe to round-trip through this subset converter. The offline converter does not support arbitrary VST state, controllers, take lanes or automation. Use native live operations to preserve existing plugin state and insert CC/articulation performances.
 
+## Quick start
+
+On Windows, install REAPER separately and use Node.js 20 or 22. The server starts in read-only mode.
+
+```powershell
+$workspace = "$env:LOCALAPPDATA/ReaperMCP/workspace"
+New-Item -ItemType Directory -Force $workspace
+codex mcp add reaper --env "REAPER_MCP_WORKSPACE=$workspace" -- npx -y @sarutobi-sasuke/reaper-mcp@0.1.0-alpha.6
+```
+
+For another stdio client, use `npx` with arguments `-y @sarutobi-sasuke/reaper-mcp@0.1.0-alpha.6` and set `REAPER_MCP_WORKSPACE` to an existing absolute folder. See the [Windows setup guide](docs/install-windows.md) for write access, bridge setup and audio modes.
+
 ## Purpose
 
 - A compact surface of 14 MCP tools, with capability discovery and guarded execution.
 - Two modes:
   - **Offline:** write `.RPP` projects from a backend-neutral song model and render headlessly with `reaper -renderproject`.
-  - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Native track/instrument insertion, MIDI clips, CC/dynamics ramps, named keyswitch articulations guarded existing-note/keyswitch edits, scoped CC ramp replacement and save/reopen/section renders are also available. See [performance editing](docs/performance-control.md). Transport and FX parameter editing remain roadmap work.
+  - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Native track/instrument insertion, MIDI clips, CC/dynamics ramps, named keyswitch articulations, guarded existing-note/keyswitch edits, scoped CC ramp replacement and save/reopen/section renders are also available. See [performance editing](docs/performance-control.md). Transport and FX parameter editing remain roadmap work.
 - Builds on MIT-licensed audio-analysis code from [lmms-mcp](https://github.com/SarutobiSasuke8/lmms-mcp). Broader genre, arrangement and vocal workflows remain roadmap work.
 
 ## REAPER licensing

@@ -1,6 +1,7 @@
 {
   "name": "@sarutobi-sasuke/reaper-mcp",
-  "version": "0.1.0-alpha.5",
+  "mcpName": "io.github.SarutobiSasuke8/reaper-mcp",
+  "version": "0.1.0-alpha.6",
   "private": false,
   "description": "A compact MCP surface for offline and live REAPER projects",
   "type": "module",

@@ -1,12 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.6
+
+- Add the official MCP Registry manifest and npm package identity.
+- Update the Windows installation guide for the npm package and matching GitHub prerelease.
+- Add LMMS-derived dynamic range, loudness range, stereo, and tempo measurements.
 
 - Vendor reference-track comparison from green LMMS PR #81; `reaper_analyze` accepts an optional workspace-relative `referencePath` WAV.
 
 - Vendor onset density and swing analysis from LMMS MCP, with requested-swing regression coverage.
 
 - Vendor key and Camelot analysis from LMMS MCP, with requested-key compatibility regression coverage.
+
+## 0.1.0-alpha.5
+
+- Published the Windows package on npm on 16 November 2026 and mirrored it to GitHub Releases.
+- Added guarded edits to existing MIDI notes, named keyswitch replacement, controller ramp replacement and beat-range renders.
 
 ## 0.1.0-alpha.4 - GitHub alpha published 2026-11-16
 

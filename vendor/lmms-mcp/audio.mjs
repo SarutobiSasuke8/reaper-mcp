@@ -329,7 +329,7 @@ function levels(audio, start, end) {
   return result;
 }
 
-export function analyze(audio, { sections = [], pitch = false, expectedBpm, expectedKey, expectedSwing } = {}) {
+export function analyze(audio, { sections = [], pitch = false, expectedBpm, expectedKey, expectedSwing, reference } = {}) {
   const requestedSwing = expectedSwing === undefined ? undefined : parseExpectedSwing(expectedSwing);
   const expectedCamelot = expectedKey === undefined ? undefined : parseExpectedKey(expectedKey);
   const { sampleRate, frames } = audio;
@@ -381,6 +381,7 @@ export function analyze(audio, { sections = [], pitch = false, expectedBpm, expe
     ...spectrum(audio),
     loop: { boundaryJumpDbfs: db(jump), boundaryStepDbfs: db(step), startRmsDbfs: powerDb(meanSquare(audio, 0, edge)), endRmsDbfs: powerDb(meanSquare(audio, frames - edge, frames)) },
   };
+  if (reference !== undefined) report.referenceMatch = compareToReference(bandProfile(audio), bandProfile(reference));
   if (report.rmsDbfs !== null && report.peakDbfs !== null) report.crestDb = Number((report.peakDbfs - report.rmsDbfs).toFixed(2));
   const signal = pitch || sections.some(s => s.pitch) ? mono(audio) : null;
   const pitchOf = (start, end) => {
@@ -410,6 +411,12 @@ export function loopJoinClicks(loop) {
 // Plain-language warnings an agent can act on without listening.
 export function advise(report, { loop = false, targetLufs } = {}) {
   const notes = [];
+  const ref = report.referenceMatch;
+  if (ref) {
+    if (ref.gainDb != null && Math.abs(ref.gainDb) >= 3) notes.push(`The mix is ${Math.abs(ref.gainDb).toFixed(1)} dB ${ref.gainDb > 0 ? 'quieter' : 'louder'} than the reference: match levels before comparing tone.`);
+    const delta = ref.worst == null ? null : ref.bandDeltas[ref.worst];
+    if (delta != null && Math.abs(delta) >= 3) notes.push(`The ${ref.worst} band is ${Math.abs(delta).toFixed(1)} dB ${delta > 0 ? 'above' : 'below'} the reference: adjust EQ or the instrument level in that range.`);
+  }
   if (report.rhythm?.swingMatch === false) notes.push(`Detected swing ratio (${report.rhythm.swing}) does not match the requested ${report.rhythm.expectedSwing}: check the groove swing setting and the humanise amount.`);
   if (report.key?.compatible === false) notes.push(`Detected key (${report.key.key}, Camelot ${report.key.camelot}) does not match the requested ${report.key.expectedCamelot}: check the project key, the bass line and the chord pattern.`);
   if (report.tempo?.match === false) notes.push(`Detected tempo (${report.tempo.bpm} BPM) does not match the requested ${report.tempo.expectedBpm} BPM: check the project tempo and the drum pattern grid.`);
@@ -995,4 +1002,219 @@ function parseExpectedSwing(value) {
   if (value === 'triplet') return 2;
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
   throw new RangeError('expectedSwing must be a finite number > 0, "straight" or "triplet"');
+}
+
+// Reference profiling ported from lingxi-gbv-20261124-01; FFT maths retained.
+const BANDS = Object.entries(bandEdges).map(([name, [lo, hi]]) => [name, lo, hi]);
+function roundN(x, n) {
+  return Number(x.toFixed(n));
+}
+
+function isPositivePowerOfTwo(n) {
+  return Number.isInteger(n) && n > 0 && (n & (n - 1)) === 0;
+}
+
+function delta(a, b) {
+  if (a == null || b == null) return null;
+  return a - b;
+}
+
+function fftInPlace(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      const tr = re[i]; re[i] = re[j]; re[j] = tr;
+      const ti = im[i]; im[i] = im[j]; im[j] = ti;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const half = len >> 1;
+    const ang0 = -2 * Math.PI / len;
+    for (let i = 0; i < n; i += len) {
+      for (let j = 0; j < half; j++) {
+        const ang = ang0 * j;
+        const wRe = Math.cos(ang);
+        const wIm = Math.sin(ang);
+        const p = i + j;
+        const q = p + half;
+        const vRe = re[q] * wRe - im[q] * wIm;
+        const vIm = re[q] * wIm + im[q] * wRe;
+        re[q] = re[p] - vRe;
+        im[q] = im[p] - vIm;
+        re[p] += vRe;
+        im[p] += vIm;
+      }
+    }
+  }
+}
+
+function lsSlope(xs, ys) {
+  const n = xs.length;
+  if (n < 2) return null;
+  let sx = 0, sy = 0, sxy = 0, sx2 = 0;
+  for (let i = 0; i < n; i++) {
+    const x = xs[i], y = ys[i];
+    sx += x;
+    sy += y;
+    sxy += x * y;
+    sx2 += x * x;
+  }
+  const den = n * sx2 - sx * sx;
+  if (!(Math.abs(den) > 0) || !Number.isFinite(den)) return null;
+  const slope = (n * sxy - sx * sy) / den;
+  return Number.isFinite(slope) ? slope : null;
+}
+
+function bandForHz(f) {
+  for (let i = 0; i < BANDS.length; i++) {
+    const lo = BANDS[i][1], hi = BANDS[i][2];
+    if (f >= lo && f < hi) return i;
+  }
+  return -1;
+}
+
+export function bandProfile({ sampleRate, channels } = {}, { frame = 4096, hop = 2048 } = {}) {
+  if (!Number.isInteger(hop) || hop <= 0) throw new RangeError('hop must be a positive integer');
+  if (!isPositivePowerOfTwo(frame)) throw new RangeError('frame must be a positive power of two');
+
+  const out = {
+    rmsDb: null,
+    bands: { sub: null, bass: null, lowMid: null, mid: null, highMid: null, air: null },
+    slope: null,
+    width: null,
+    frames: 0,
+  };
+
+  const ch0 = channels && channels[0];
+  const n = ch0 && ch0.length ? ch0.length : 0;
+  const ch1 = channels && channels.length >= 2 ? channels[1] : null;
+  const stereo = ch1 != null;
+
+  const m = new Float64Array(n);
+  let ss = 0;
+  let Pm = 0;
+  let Ps = 0;
+
+  if (stereo) {
+    for (let i = 0; i < n; i++) {
+      const L = ch0[i];
+      const R = ch1[i];
+      const mid = (L + R) / 2;
+      const side = (L - R) / 2;
+      m[i] = mid;
+      const mid2 = mid * mid;
+      ss += mid2;
+      Pm += mid2;
+      Ps += side * side;
+    }
+    if (Pm + Ps > 1e-12) out.width = roundN(Ps / (Pm + Ps), 3);
+  } else if (n > 0) {
+    for (let i = 0; i < n; i++) {
+      const v = ch0[i];
+      m[i] = v;
+      ss += v * v;
+    }
+    if (ss > 1e-12) out.width = 0;
+  }
+
+  if (n > 0 && ss / n > 1e-12) out.rmsDb = roundN(10 * Math.log10(ss / n), 2);
+
+  const nyquist = sampleRate / 2;
+  const power = new Float64Array(BANDS.length);
+  const window = new Float64Array(frame);
+  if (frame > 1) {
+    const denom = frame - 1;
+    for (let i = 0; i < frame; i++) window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / denom);
+  } else {
+    window[0] = 1;
+  }
+
+  const re = new Float64Array(frame);
+  const im = new Float64Array(frame);
+  const binHz = sampleRate / frame;
+  const kMax = frame / 2;
+
+  for (let s = 0; s + frame <= n; s += hop) {
+    out.frames++;
+    for (let i = 0; i < frame; i++) {
+      re[i] = m[s + i] * window[i];
+      im[i] = 0;
+    }
+    fftInPlace(re, im);
+    for (let k = 1; k <= kMax; k++) {
+      const f = k * binHz;
+      const bi = bandForHz(f);
+      if (bi < 0) continue;
+      const rv = re[k], iv = im[k];
+      power[bi] += rv * rv + iv * iv;
+    }
+  }
+
+  let total = 0;
+  for (let i = 0; i < power.length; i++) total += power[i];
+
+  if (out.frames === 0 || out.rmsDb === null || total <= 1e-12) return out;
+
+  const xs = [];
+  const ys = [];
+  for (let i = 0; i < BANDS.length; i++) {
+    const name = BANDS[i][0];
+    const lower = BANDS[i][1];
+    const upper = BANDS[i][2];
+    const Pb = power[i];
+    if (!(lower < nyquist) || !(Pb > 0)) continue;
+    const top = Math.min(upper, nyquist);
+    const rel = Pb / total;
+    const db = 10 * Math.log10(rel);
+    if (Number.isFinite(db)) out.bands[name] = roundN(db, 1);
+    const oct = Math.log2(top / lower);
+    if (oct > 0 && rel > 0) {
+      const y = 10 * Math.log10(rel / oct);
+      const x = Math.log2(Math.sqrt(lower * top));
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        xs.push(x);
+        ys.push(y);
+      }
+    }
+  }
+
+  const slope = lsSlope(xs, ys);
+  if (slope != null) out.slope = roundN(slope, 2);
+  return out;
+}
+
+export function compareToReference(mix, ref) {
+  const bandDeltas = { sub: null, bass: null, lowMid: null, mid: null, highMid: null, air: null };
+  let worst = null;
+  let worstAbs = 0;
+  for (let i = 0; i < BANDS.length; i++) {
+    const name = BANDS[i][0];
+    const unrounded = delta(mix && mix.bands ? mix.bands[name] : null, ref && ref.bands ? ref.bands[name] : null);
+    if (unrounded == null) {
+      bandDeltas[name] = null;
+      continue;
+    }
+    bandDeltas[name] = roundN(unrounded, 1);
+    const a = Math.abs(unrounded);
+    if (a >= 0.5 && (worst === null || a > worstAbs)) {
+      worst = name;
+      worstAbs = a;
+    }
+  }
+
+  const gainRaw = delta(ref && ref.rmsDb, mix && mix.rmsDb);
+  const slopeRaw = delta(mix && mix.slope, ref && ref.slope);
+  const widthRaw = delta(mix && mix.width, ref && ref.width);
+
+  return {
+    gainDb: gainRaw == null ? null : roundN(gainRaw, 2),
+    bandDeltas,
+    worst,
+    slopeDelta: slopeRaw == null ? null : roundN(slopeRaw, 2),
+    widthDelta: widthRaw == null ? null : roundN(widthRaw, 3),
+    levelMatch: 'rms',
+  };
 }

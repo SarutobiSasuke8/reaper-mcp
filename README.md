@@ -36,3 +36,5 @@ MIT. See [LICENSE](LICENSE).
 Live composition: [MIDI and instrument workflow](docs/live-music.md). Optional additions: [instrument and workflow expansion plan](docs/instrument-roadmap.md).
 
 Performance control and local quartet templates: [usage](docs/performance-control.md). BBC palette and solo-string limitations: [instrument reference](docs/bbc-discover.md).
+
+`reaper_analyze` accepts an optional workspace-relative `referencePath` WAV, validated with the same path and size rules as `file`. When supplied, `referenceMatch` reports RMS level-match gain and band, slope and width deltas. Missing or undecodable references return a tool error.

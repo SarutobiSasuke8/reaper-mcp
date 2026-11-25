@@ -154,7 +154,7 @@ const definitions = {
     writes: false,
     description:
       "Measure a WAV file with the ported LMMS audio analyser; LUFS and true peak are estimates.",
-    schema: z.object({ ...mode, ...file }),
+    schema: z.object({ ...mode, ...file, referencePath: string.optional().describe("Optional workspace-relative reference WAV") }),
   },
   reaper_run: {
     writes: true,
@@ -261,7 +261,7 @@ export async function call(
           args.section as z.infer<typeof sectionSchema> | undefined,
         );
       } else if (name === "reaper_analyze") {
-        value = await service.analyze(args.file as string);
+        value = await service.analyze(args.file as string, args.referencePath as string | undefined);
       } else if (name === "reaper_get")
         value = await service.live!.get(args.path as string);
       else if (name === "reaper_list") {
@@ -390,7 +390,7 @@ export async function call(
           );
           break;
         case "reaper_analyze":
-          value = await service.analyze(args.file as string);
+          value = await service.analyze(args.file as string, args.referencePath as string | undefined);
           break;
         case "reaper_run":
           value = service.run(

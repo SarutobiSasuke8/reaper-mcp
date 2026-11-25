@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Vendor reference-track comparison from green LMMS PR #81; `reaper_analyze` accepts an optional workspace-relative `referencePath` WAV.
+
 - Vendor onset density and swing analysis from LMMS MCP, with requested-swing regression coverage.
 
 - Vendor key and Camelot analysis from LMMS MCP, with requested-key compatibility regression coverage.

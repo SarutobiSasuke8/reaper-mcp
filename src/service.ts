@@ -308,8 +308,16 @@ export class ReaperService {
     this.song = songSchema.parse(candidate);
     return { track, item };
   }
-  async analyze(file: string): Promise<unknown> {
-    return analyze(decodeWav(await this.workspace.read(file, 100_000_000)));
+  async analyze(file: string, referencePath?: string): Promise<unknown> {
+    const audio = decodeWav(await this.workspace.read(file, 100_000_000));
+    if (referencePath === undefined) return analyze(audio);
+    let reference;
+    try {
+      reference = decodeWav(await this.workspace.read(referencePath, 100_000_000));
+    } catch (error) {
+      throw new ToolError("invalid_reference", `Cannot read reference WAV: ${(error as Error).message}`);
+    }
+    return analyze(audio, { reference });
   }
   async render(
     target: "mix" | "stems" | "regions",

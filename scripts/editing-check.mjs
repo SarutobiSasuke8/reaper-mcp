@@ -1,5 +1,6 @@
 // Run FROM the installed package. No third-party instruments, personal settings or UI automation.
 import assert from 'node:assert/strict';
+import { checkRouting } from './routing-fixture.mjs';
 import {mkdtemp,writeFile,readFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,12 +15,19 @@ const env={...getDefaultEnvironment(),REAPER_MCP_WORKSPACE:root,REAPER_MCP_BRIDG
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 let client;
 async function connect(){client=new Client({name:'packed-release-check',version:'1'});await client.connect(new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('../dist/src/stdio.js',import.meta.url))],env,stderr:'pipe'}));}
-async function call(name,args={}){const r=await client.callTool({name,arguments:{mode:'live',...args}},undefined,{timeout:240000});if(r.isError)throw Error(r.content[0].text);return r.structuredContent.result;}
+const started=Date.now(), toolCalls={};
+async function call(name,args={}){toolCalls[name]=(toolCalls[name]??0)+1;const r=await client.callTool({name,arguments:{mode:'live',...args}},undefined,{timeout:240000});if(r.isError)throw Error(r.content[0].text);return r.structuredContent.result;}
 async function ready(){const end=Date.now()+180000;while(!(await call('reaper_health')).live){if(Date.now()>end)throw Error('Fresh startup failed; no UI intervention attempted');await delay(500);}await call('reaper_get',{path:'/project'});}
 async function ownedPid(){return JSON.parse(await readFile(path.join(root,'reaper-mcp-profile/process.json'),'utf8')).pid;}
 async function stopOwned(){try{const pid=await ownedPid();process.kill(pid);const end=Date.now()+10000;while(Date.now()<end){try{process.kill(pid,0);}catch{return;}await delay(100);}throw Error('Owned test process did not exit');}catch(e){if(e.code!=='ENOENT'&&e.code!=='ESRCH')throw e;}}
 try{
  await connect();console.log("Waiting for fresh managed REAPER (up to 180 seconds for cold plugin scanning)");await ready();
+ if (process.argv.includes('--routing')) {
+   const routing=await checkRouting({root,catalogue,call});
+   routing.elapsedMs=Date.now()-started; routing.toolCalls=toolCalls;
+   await writeFile(path.join(root,'routing-check.json'),JSON.stringify(routing,null,2));
+   console.log('Native routing PASS',root,JSON.stringify(routing));
+ } else {
  const plugins=await call('reaper_get',{path:'/plugins'});const synth=plugins.find(p=>p.name.includes('ReaSynth'));assert(synth,'Bundled ReaSynth not found');
  await writeFile(catalogue,JSON.stringify([{id:'test-synth',name:'Bundled ReaSynth',plugin:synth.name,articulations:{test_switch:24}}]));
  await call('reaper_enable_toolset',{name:'editing'});await call('reaper_project',{operation:'new',song:{tempo:120}});
@@ -114,6 +122,36 @@ try{
  await call('reaper_project',{operation:'open',file:'pooled.rpp'});
  const pooledItem=await call('reaper_get',{path:'/tracks/0/items/0'});
  await assert.rejects(run('live_edit_performance',{track:0,item:0,takeGuid:pooledItem.takeGuid,notes:[{index:1,velocity:50}]}),/Pooled MIDI/);
- const report={result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,before,section,fxComparison:{baselineRmsDbfs:baselineAudio.rmsDbfs,variantRmsDbfs:variantAudio.rmsDbfs},checks:['paged FX discovery, preview, GUID guard, readback and measured A/B','looped and pooled MIDI rejected','offline section rejected','exact section duration','existing note pitch/velocity/duration edits','named articulation replacement','scoped CC ramp replacement','dry-run unchanged','invalid take and out-of-bounds rejection','equal-length different section renders','save/reopen edits','fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen'],rendered,measurement};
+ const originalVariant = await readFile(path.join(root,fxVariant.files[0]));
+ const auditionArgs = {a:before.files[0], b:fxVariant.files[0], targetLufs:-18};
+ const previewAB = await run('audition_ab',auditionArgs,true);
+ assert.equal(previewAB.files,undefined);
+ const audition = await run('audition_ab',auditionArgs);
+ assert.ok(audition.deltaLu<=0.5);
+ for (const file of audition.files) {
+   const levels = await analyzeFile(file);
+   assert.ok(Math.abs(levels.integratedLufs-audition.targetLufs)<0.25);
+   assert.ok(levels.truePeakDbfs<=-1);
+ }
+ assert.ok(first.equals(await readFile(path.join(root,before.files[0]))));
+ assert.ok(originalVariant.equals(await readFile(path.join(root,fxVariant.files[0]))));
+ await call('reaper_project',{operation:'open',file:audition.project});
+ assert.equal((await call('reaper_get',{path:'/tracks/0'})).mute,false);
+ assert.equal((await call('reaper_get',{path:'/tracks/1'})).mute,true);
+ const auditionRenders=[];
+ for(const i of [0,1]) {
+   if(i===1) {
+     await call('reaper_set',{path:'/tracks/0/mute',value:true});
+     await call('reaper_set',{path:'/tracks/1/mute',value:false});
+   }
+   const variant=await call('reaper_render',{target:'mix',section:{startBeat:0,endBeat:2.5,tailSeconds:0}});
+   const level=await analyzeFile(variant.files[0]);
+   assert.ok(Number.isFinite(level.integratedLufs));
+   auditionRenders.push(level.integratedLufs);
+ }
+ assert.ok(Math.abs(auditionRenders[0]-auditionRenders[1])<=0.5);
+ console.log('Native audition',JSON.stringify({project:audition.project,auditionRenders,deltaLu:audition.deltaLu}));
+ const report={elapsedMs:Date.now()-started,toolCalls,audition,auditionRenders,result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,before,section,fxComparison:{baselineRmsDbfs:baselineAudio.rmsDbfs,variantRmsDbfs:variantAudio.rmsDbfs},checks:['paged FX discovery, preview, GUID guard, readback and measured A/B','looped and pooled MIDI rejected','offline section rejected','exact section duration','existing note pitch/velocity/duration edits','named articulation replacement','scoped CC ramp replacement','dry-run unchanged','invalid take and out-of-bounds rejection','equal-length different section renders','save/reopen edits','fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen'],rendered,measurement};
  await writeFile(path.join(root,'release-check.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+ }
 }finally{if(client)await client.close();await stopOwned();}

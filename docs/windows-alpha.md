@@ -50,6 +50,28 @@ Available in the development build after alpha.6. Start its matching Lua bridge.
 
 The preview returns the current control and requested value. Apply with `dryRun: false` and use `after` for the actual value. A stepped control can round the request. A changed project revision or mismatched FX GUID rejects the edit. REAPER records the edit in a named undo block. When the value changes and REAPER exposes that block, the result includes an `undoToken`. Pass it to `live_revert_fx_edit` to undo that specific edit. The token expires on use, a revision change, a project switch or a bridge restart. This operation addresses top-level online track FX. To compare audio, render the same beat range before and after the edit, then pass the two WAV paths to `reaper_analyze` as `file` and `referencePath`.
 
+## Audition two versions at matched loudness
+
+Render the same passage twice. Enable the editing toolset, then call `reaper_run` in live or offline mode with:
+
+```json
+{
+  "capability": "audition_ab",
+  "args": {"a": "original/mix.wav", "b": "revision/mix.wav", "targetLufs": -18},
+  "dryRun": false
+}
+```
+
+Open the returned `audition.rpp` or play the two returned WAV files. The project aligns both copies at zero with B muted. To hear B, mute A and unmute B. Both WAVs keep the source timing. The pair must have the same frame count, sample rate and channel count. Use the same timeline start for each render.
+
+The default target is −18 LUFS. A shared lower target accommodates peaks when necessary. The tool applies constant gain, encodes 16-bit PCM, then measures the listening copies again. It returns paths only if they match within 0.5 LU with at least 1 dB of estimated true-peak headroom. Silence or an incompatible pair produces an error. A dry run reports measurements without creating files. Each applied run gets its own folder.
+
+## Live routing, stems and FX automation
+
+- Read `/tracks` for indices and GUIDs. Run `live_add_send` with `source`, `sourceGuid`, `destination`, `destinationGuid`, `pair` and optional `gainDb`. Use `1/2` for a normal stereo send or `3/4` for a sidechain. Both send post-fader audio with MIDI disabled. Read `/tracks/0/sends` to inspect the result. The receiving plugin must use its auxiliary input.
+- To render one track, call `reaper_render` in live mode with `target: "stems"` and `stemTrack: {"index": 1, "guid": "..."}`. Optional `section` uses the same beat bounds as a mix render. The worker renders the track from a project snapshot with its incoming sends. The returned stereo WAV is the selected track output before downstream buses and master FX.
+- Read `/tracks/1/fx/0/parameters/0/envelope` to inspect existing points. Run `live_edit_fx_envelope_point` with the track, FX slot and GUID, parameter and point indices, the observed `timeSeconds` and a new `normalized` value. Preview with `dryRun`. The returned times identify the adjacent anchors. This operation edits interior points on unscaled 0–1 FX envelopes with linear or square segments, while transport is stopped. It rejects automation items and boundary points.
+
 ## Modes and capabilities
 
 | Mode | Supported now |

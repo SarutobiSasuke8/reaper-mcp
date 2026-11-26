@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { readFile, realpath, stat, mkdtemp, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ToolError } from "./errors.js";
 import { Workspace } from "./workspace.js";
 import { LiveBridge } from "./live.js";
@@ -80,6 +81,14 @@ export const sectionSchema = z.object({startBeat: beat, endBeat: beat,
   tailSeconds: z.number().finite().min(0).max(30).default(0),
 }).strict().refine(s => s.endBeat > s.startBeat, "Section must move forward");
 export const musicSchemas = {
+  live_edit_fx_envelope_point: z.object({
+    track, fx: editIndex, fxGuid: text, parameter: editIndex, point: editIndex,
+    timeSeconds: z.number().min(0).max(86400), normalized: z.number().min(0).max(1),
+  }).strict(),
+  live_add_send: z.object({
+    source: track, sourceGuid: text, destination: track, destinationGuid: text,
+    pair: z.enum(["1/2","3/4"]).default("1/2"), gainDb: z.number().min(-150).max(12).default(0),
+  }).strict(),
   live_revert_fx_edit: z.object({ undoToken: text }).strict(),
   live_set_fx_parameter: z.object({
     track, fx: z.number().int().nonnegative(), fxGuid: text,
@@ -113,7 +122,11 @@ export const musicCapabilities = Object.entries(musicSchemas).map(
     toolset: "editing",
     modes: ["live"],
     description:
-      name === "live_revert_fx_edit"
+      name === "live_edit_fx_envelope_point"
+        ? "Adjust one existing interior FX automation point. Read the parameter's /envelope first. Preserves its time and adjacent anchors; supports linear/square segments on unscaled 0-1 controls."
+        : name === "live_add_send"
+        ? "Create a post-fader stereo audio send to destination channels 1/2 or sidechain 3/4. Read track GUIDs first. MIDI is disabled."
+        : name === "live_revert_fx_edit"
         ? "Undo the most recent guarded FX edit using its returned undoToken while the project is still at that revision."
         : name === "live_set_fx_parameter"
         ? "Set one track FX parameter. Read /tracks/{track}/fx for its GUID and /tracks/{track}/fx/{fx}/parameters for controls. Supply normalized 0-1. Returns native readback."
@@ -168,6 +181,10 @@ export async function runMusic(
   const a: any = schema.parse(raw);
   let fields: string[];
   if (capability === "live_add_track") fields = [a.name];
+  else if (capability === "live_edit_fx_envelope_point")
+    fields = [String(a.track), String(a.fx), a.fxGuid, String(a.parameter), String(a.point), String(a.timeSeconds), String(a.normalized)];
+  else if (capability === "live_add_send")
+    fields = [String(a.source), a.sourceGuid, String(a.destination), a.destinationGuid, a.pair, String(a.gainDb)];
   else if (capability === "live_revert_fx_edit") fields = [a.undoToken];
   else if (capability === "live_set_fx_parameter")
     fields = [String(a.track), String(a.fx), a.fxGuid, String(a.parameter), String(a.normalized)];
@@ -292,13 +309,17 @@ export async function renderLive(
   workspace: Workspace,
   timeout: number,
   section?: z.infer<typeof sectionSchema>,
+  stemTrack?: { index: number; guid: string },
 ) {
   const exe = await locateReaper();
   if (!exe) throw new ToolError("reaper_not_found", "REAPER is not installed");
   const folder = await mkdtemp(path.join(workspace.root, "live-render-"));
   const project = path.join(folder, "mix.rpp");
   const bounds = section ? sectionSchema.parse(section) : undefined;
-  const snapshot = await bridge.mutate("snapshot", [project, folder, ...(bounds ? [String(bounds.startBeat),String(bounds.endBeat),String(bounds.tailSeconds)] : [])], false);
+  const fields = [project, folder];
+  if (stemTrack) fields.push(String(stemTrack.index), stemTrack.guid);
+  if (bounds) fields.push(String(bounds.startBeat), String(bounds.endBeat), String(bounds.tailSeconds));
+  const snapshot = await bridge.mutate(stemTrack ? "snapshot_stem" : "snapshot", fields, false);
   if (bounds && (!Number.isFinite(snapshot.startSeconds) || !Number.isFinite(snapshot.endSeconds)))
     throw new ToolError("bridge_upgrade_required", "Section rendering requires the updated bridge; start a fresh managed session");
   const cfg = path.join(folder, "reaper.ini");
@@ -312,6 +333,11 @@ export async function renderLive(
       `[REAPER]\n${vstPaths ? `vstpath64=${vstPaths}\n` : ""}`,
     ),
   );
+  let renderArgs = ["-renderproject", project, "-close:nosave:exit"];
+  if (stemTrack) {
+    await writeFile(path.join(folder, "stem-track.txt"), snapshot.stemGuid, { flag: "wx" });
+    renderArgs = [project, fileURLToPath(new URL("../../bridge/render-stem.lua", import.meta.url))];
+  }
   const started = Date.now();
   await runProcess(
     exe,
@@ -320,13 +346,11 @@ export async function renderLive(
       "-nosplash",
       "-cfgfile",
       cfg,
-      "-renderproject",
-      project,
-      "-close:nosave:exit",
+      ...renderArgs,
     ],
     timeout,
   );
-  const output = path.join(folder, "mix.wav");
+  const output = path.join(folder, stemTrack ? "stem.wav" : "mix.wav");
   if ((await stat(output).catch(() => ({ size: 0 }))).size <= 44)
     throw new ToolError(
       "missing_output",

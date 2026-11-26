@@ -30,6 +30,7 @@ export const pathSchema = z
   );
 export { capabilities } from "./editing.js";
 import { capabilities, editSong } from "./editing.js";
+import { auditionCapability } from "./audition.js";
 import { musicCapabilities } from "./music.js";
 
 export class ReaperService {
@@ -336,7 +337,8 @@ export class ReaperService {
         "FX inventory, paged parameter inspection and guarded parameter edits",
         "track name/gain/pan/mute",
         "native track, catalogue instrument and beat-based MIDI insertion",
-        "native project new/open/save and isolated mix render",
+        "native project new/open/save, mix and selected-track stem renders",
+        "stereo sends, sidechain routing and matched A/B audition projects",
       ],
       reaperInstalled: !!(await locateReaper()),
       writesEnabled: this.allowWrites,
@@ -344,7 +346,7 @@ export class ReaperService {
   }
   describe(subject: string): unknown {
     if (subject === "song" || subject === "/project") return songJsonSchema;
-    const cap = [...capabilities, ...musicCapabilities].find(
+    const cap = [...capabilities, ...musicCapabilities, auditionCapability].find(
       (c) => c.name === subject,
     );
     if (cap)

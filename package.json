@@ -33,7 +33,8 @@
     "scripts/performance-check.mjs",
     "scripts/windows-release-check.mjs",
     "scripts/system-audio-check.mjs",
-    "scripts/editing-check.mjs"
+    "scripts/editing-check.mjs",
+    "scripts/routing-fixture.mjs"
   ],
   "scripts": {
     "build": "tsc",

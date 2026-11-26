@@ -64,7 +64,25 @@ local function fx_parameter(t, fx, index)
   return {index=index,name=name,normalized=reaper.TrackFX_GetParamNormalized(t,fx,index),
     formatted=formatted and label or nil}
 end
+local function envelope_point(env,index)
+  local ok,time,value,shape,tension,selected=reaper.GetEnvelopePoint(env,index)
+  assert(ok,"Envelope point not found")
+  return {index=index,timeSeconds=time,value=value,shape=shape,tension=tension,selected=selected}
+end
 local function get_value(p, object_path)
+  local tr,slot,control=object_path:match("^/tracks/(%d+)/fx/(%d+)/parameters/(%d+)/envelope$")
+  if tr then
+    local fx,index=tonumber(slot),tonumber(control)
+    local t=track_fx(p,tonumber(tr),fx)
+    fx_parameter(t,fx,index)
+    local env=reaper.GetFXEnvelope(t,fx,index,false)
+    local points={__array=true}
+    if not env then return {exists=false,points=points} end
+    local count=reaper.CountEnvelopePoints(env)
+    assert(count<=2048,"Envelope read limit exceeded")
+    for i=0,count-1 do points[#points+1]=envelope_point(env,i) end
+    return {exists=true,points=points,automationItems=reaper.CountAutomationItems(env)}
+  end
   local ti,fi,pi=object_path:match("^/tracks/(%d+)/fx/(%d+)/parameters/(%d+)$")
   local offset,limit
   if not ti then
@@ -135,6 +153,18 @@ local function get_value(p, object_path)
   if not index then index=object_path:match("^/tracks/(%d+)$") end
   assert(index,"Unsupported live path")
   local t=reaper.GetTrack(p,tonumber(index)); assert(t,"Track not found")
+  if field=="sends" then
+    local sends={__array=true}
+    local count=reaper.GetTrackNumSends(t,0)
+    assert(count<=256,"Too many sends")
+    for i=0,count-1 do
+      local function get(key) return reaper.GetTrackSendInfo_Value(t,0,i,key) end
+      local dest=get("P_DESTTRACK")
+      sends[#sends+1]={index=i,destinationGuid=reaper.GetTrackGUID(dest),sourceChannel=get("I_SRCCHAN"),
+        destinationChannel=get("I_DSTCHAN"),gain=get("D_VOL"),mode=get("I_SENDMODE"),midiFlags=get("I_MIDIFLAGS")}
+    end
+    return sends
+  end
   if field=="fx" then
     local fx={__array=true}; assert(reaper.TrackFX_GetCount(t)<=128,"FX limit exceeded")
     for i=0,reaper.TrackFX_GetCount(t)-1 do
@@ -157,7 +187,73 @@ local function music(p,a)
   local result={dryRun=dry=="1",action=action}
   local perform
   local undo_label='REAPER MCP: '..action
-  if action=="live_revert_fx_edit" then
+  if action=="live_edit_fx_envelope_point" then
+    assert(reaper.GetPlayStateEx(p)==0,"Stop transport before editing automation")
+    local fx=number(a[10],0,9999,true)
+    local t=track_fx(p,number(a[9],0,255,true),fx)
+    assert(reaper.TrackFX_GetFXGUID(t,fx)==a[11],"FX identity changed")
+    local param=number(a[12],0,reaper.TrackFX_GetNumParams(t,fx)-1,true)
+    local _,minimum,maximum=reaper.TrackFX_GetParam(t,fx,param)
+    local env=assert(reaper.GetFXEnvelope(t,fx,param,false),"Existing FX envelope required")
+    assert(minimum==0 and maximum==1 and reaper.GetEnvelopeScalingMode(env)==0,"Requires an unscaled 0-1 parameter")
+    assert(reaper.CountAutomationItems(env)==0,"Envelope with automation items unsupported")
+    local index=number(a[13],1,reaper.CountEnvelopePoints(env)-2,true)
+    local left,point,right=envelope_point(env,index-1),envelope_point(env,index),envelope_point(env,index+1)
+    assert(math.abs(point.timeSeconds-number(a[14],0,86400))<0.0000001,"Point time changed")
+    assert(left.timeSeconds<point.timeSeconds and point.timeSeconds<right.timeSeconds,"Distinct anchors required")
+    assert(left.shape<=1 and point.shape<=1,"Only linear and square segments supported")
+    result.before=point;result.startSeconds=left.timeSeconds;result.endSeconds=right.timeSeconds
+    result.requested=number(a[15],0,1)
+    perform=function()
+      assert(reaper.SetEnvelopePoint(env,index,point.timeSeconds,result.requested,point.shape,point.tension,point.selected,false),"Envelope write failed")
+      result.after=envelope_point(env,index)
+    end
+  elseif action=="live_add_send" then
+    local src=assert(reaper.GetTrack(p,number(a[9],0,255,true)),"Source not found")
+    local dest=assert(reaper.GetTrack(p,number(a[11],0,255,true)),"Destination not found")
+    assert(reaper.GetTrackGUID(src)==a[10] and reaper.GetTrackGUID(dest)==a[12],"Track identity changed")
+    assert(a[13]=="1/2" or a[13]=="3/4","Unknown destination pair")
+    local dstchan=a[13]=="3/4" and 2 or 0
+    local gain=10^(number(a[14],-150,12)/20)
+    for i=0,reaper.GetTrackNumSends(src,0)-1 do
+      assert(reaper.GetTrackSendInfo_Value(src,0,i,"P_DESTTRACK")~=dest or
+        reaper.GetTrackSendInfo_Value(src,0,i,"I_DSTCHAN")~=dstchan,"Send to that pair already exists")
+    end
+    local seen,queue={}, {dest}
+    while #queue>0 do
+      local node=table.remove(queue)
+      assert(node~=src,"Send would create feedback")
+      if not seen[node] then
+        seen[node]=true
+        if reaper.GetMediaTrackInfo_Value(node,"B_MAINSEND")~=0 then
+          local parent=reaper.GetParentTrack(node)
+          if parent then queue[#queue+1]=parent end
+        end
+        for i=0,reaper.GetTrackNumSends(node,0)-1 do
+          queue[#queue+1]=reaper.GetTrackSendInfo_Value(node,0,i,"P_DESTTRACK")
+        end
+      end
+    end
+    perform=function()
+      local width=reaper.GetMediaTrackInfo_Value(dest,"I_NCHAN")
+      local widened=width<dstchan+2
+      local send=-1
+      local ok,err=pcall(function()
+        if widened then assert(reaper.SetMediaTrackInfo_Value(dest,"I_NCHAN",dstchan+2),"Channel expansion failed") end
+        send=reaper.CreateTrackSend(src,dest)
+        assert(send>=0,"Send creation failed")
+        local function set(key,value) assert(reaper.SetTrackSendInfo_Value(src,0,send,key,value),"Send setup failed: "..key) end
+        set("I_SRCCHAN",0);set("I_DSTCHAN",dstchan);set("I_MIDIFLAGS",31);set("I_SENDMODE",0);set("D_VOL",gain)
+        set("D_PAN",0);set("B_MUTE",0);set("B_PHASE",0);set("B_MONO",0)
+      end)
+      if not ok then
+        if send>=0 then reaper.RemoveTrackSend(src,0,send) end
+        if widened then reaper.SetMediaTrackInfo_Value(dest,"I_NCHAN",width) end
+        error(err)
+      end
+      result.index=send
+    end
+  elseif action=="live_revert_fx_edit" then
     local _,identity,revision=current()
     assert(fx_undo and fx_undo.token==a[9] and fx_undo.project==identity and fx_undo.revision==revision
       and reaper.Undo_CanUndo2(p)==fx_undo.label,"FX edit is no longer the current undo step")
@@ -184,7 +280,7 @@ local function music(p,a)
   elseif action=="project_new" then
     local tempo=number(a[9],20,300)
     perform=function() reaper.Main_OnCommand(40859,0); reaper.SetCurrentBPM(0,tempo,true) end
-  elseif action=="project_open" or action=="project_save" or action=="snapshot" then
+  elseif action=="project_open" or action=="project_save" or action=="snapshot" or action=="snapshot_stem" then
     local filename=a[9]; assert(filename and filename:lower():match('%.rpp$') and not filename:find('[%z\r\n]'),"Invalid project filename")
     if action=="project_open" then
       local f=assert(io.open(filename,"rb"),"Project missing");f:close()
@@ -196,11 +292,19 @@ local function music(p,a)
       local folder=a[10];assert(folder and not folder:find('[%z\r\n]'),"Invalid folder")
       assert(reaper.GetProjectLength(p)>0,"Project contains no renderable timeline")
       local startpos,endpos=0,reaper.GetProjectLength(p)+2
-      if a[11] then
-        local first,last=number(a[11],0,100000),number(a[12],0,100000)
+      local stem
+      local pos=11
+      if action=="snapshot_stem" then
+        stem=assert(reaper.GetTrack(p,number(a[11],0,255,true)),"Stem track not found")
+        assert(reaper.GetTrackGUID(stem)==a[12],"Stem track identity changed")
+        result.stemGuid=a[12]
+        pos=13
+      end
+      if a[pos] then
+        local first,last=number(a[pos],0,100000),number(a[pos+1],0,100000)
         assert(last>first,"Invalid section")
         startpos=reaper.TimeMap2_QNToTime(p,first)
-        endpos=reaper.TimeMap2_QNToTime(p,last)+number(a[13],0,30)
+        endpos=reaper.TimeMap2_QNToTime(p,last)+number(a[pos+2],0,30)
         assert(startpos<reaper.GetProjectLength(p),"Section starts beyond project")
       end
       result.startSeconds=startpos;result.endSeconds=endpos
@@ -210,9 +314,9 @@ local function music(p,a)
         for _,key in ipairs({'RENDER_FILE','RENDER_PATTERN','RENDER_FORMAT'}) do local _,v=reaper.GetSetProjectInfo_String(p,key,'',false);strs[key]=v end
         local ok,err=pcall(function()
           reaper.GetSetProjectInfo_String(p,'RENDER_FILE',folder,true)
-          reaper.GetSetProjectInfo_String(p,'RENDER_PATTERN','mix',true)
+          reaper.GetSetProjectInfo_String(p,'RENDER_PATTERN',stem and 'stem' or 'mix',true)
           reaper.GetSetProjectInfo_String(p,'RENDER_FORMAT','ZXZhdxgAAQ==',true)
-          for key,v in pairs({RENDER_BOUNDSFLAG=0,RENDER_STARTPOS=startpos,RENDER_ENDPOS=endpos,RENDER_SETTINGS=0,RENDER_SRATE=44100,RENDER_CHANNELS=2,RENDER_TAILFLAG=0}) do reaper.GetSetProjectInfo(p,key,v,true) end
+          for key,v in pairs({RENDER_BOUNDSFLAG=0,RENDER_STARTPOS=startpos,RENDER_ENDPOS=endpos,RENDER_SETTINGS=stem and 3 or 0,RENDER_SRATE=44100,RENDER_CHANNELS=2,RENDER_TAILFLAG=0}) do reaper.GetSetProjectInfo(p,key,v,true) end
           reaper.Main_SaveProjectEx(p,filename,0)
         end)
         for key,v in pairs(nums) do reaper.GetSetProjectInfo(p,key,v,true) end

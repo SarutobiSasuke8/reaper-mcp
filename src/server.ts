@@ -1,3 +1,4 @@
+import { auditionCapability, createAudition } from "./audition.js";
 import { sectionSchema } from "./music.js";
 // House-template contract annotations and safe-error wrapper adapted for SDK 1.x.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -141,6 +142,7 @@ const definitions = {
       ...mode,
       target: z.enum(["mix", "stems", "regions"]).default("mix"),
       section: sectionSchema.optional(),
+      stemTrack: z.object({index, guid: string.max(200)}).strict().optional().describe("Live stems require the index and GUID of one track"),
       timeoutMs: z
         .number()
         .int()
@@ -211,7 +213,10 @@ export async function call(
       "reaper_describe",
       "reaper_find_capability",
     ]);
-    if (selected === "live" && !common.has(name)) {
+    if (name === "reaper_run" && args.capability === auditionCapability.name) {
+      if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
+      value = await createAudition(service.workspace, auditionCapability.schema.parse(args.args), args.dryRun as boolean);
+    } else if (selected === "live" && !common.has(name)) {
       if (
         (name === "reaper_get" || name === "reaper_list") &&
         args.path === "/instruments"
@@ -249,16 +254,21 @@ export async function call(
           args.song,
         );
       } else if (name === "reaper_render") {
-        if (args.target !== "mix")
+        if (args.target === "stems" && !args.stemTrack)
+          throw new ToolError("invalid_input", "Live stem rendering requires stemTrack index and GUID");
+        if (args.target !== "stems" && args.stemTrack)
+          throw new ToolError("invalid_input", "stemTrack requires target stems");
+        if (args.target === "regions")
           throw new ToolError(
             "unsupported_live",
-            "Live rendering currently supports mix only",
+            "Live region rendering requires explicit section bounds with target mix",
           );
         value = await renderLive(
           service.live!,
           service.workspace,
           args.timeoutMs as number,
           args.section as z.infer<typeof sectionSchema> | undefined,
+          args.stemTrack as { index: number; guid: string } | undefined,
         );
       } else if (name === "reaper_analyze") {
         value = await service.analyze(args.file as string, args.referencePath as string | undefined);
@@ -287,7 +297,7 @@ export async function call(
             {
               name: "editing",
               enabled: service.enabled.has("editing"),
-              capabilities: [...capabilities, ...musicCapabilities].map(
+              capabilities: [...capabilities, ...musicCapabilities, auditionCapability].map(
                 (c) => c.name,
               ),
             },
@@ -307,9 +317,11 @@ export async function call(
                 "/project/tempo",
                 "/tracks",
                 "/tracks/{index}",
+                "/tracks/{index}/sends",
                 "/tracks/{index}/fx",
                 "/tracks/{index}/fx/{fx}/parameters",
                 "/tracks/{index}/fx/{fx}/parameters/{parameter}",
+                "/tracks/{index}/fx/{fx}/parameters/{parameter}/envelope",
               ],
               set: [
                 "/tracks/{index}/name",
@@ -323,7 +335,7 @@ export async function call(
         case "reaper_find_capability":
           value = [
             ...capabilities.map((c) => ({ ...c, modes: ["offline"] })),
-            ...musicCapabilities,
+            ...musicCapabilities, auditionCapability,
           ]
             .filter((c) =>
               `${c.name} ${c.description}`
@@ -375,6 +387,7 @@ export async function call(
           );
           break;
         case "reaper_render":
+          if (args.stemTrack) throw new ToolError("unsupported_offline", "stemTrack requires live mode");
           if (args.section) throw new ToolError("unsupported_offline", "Section rendering requires live mode");
           value = await service.render(
             args.target as "mix" | "stems" | "regions",

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Vendor tempo-grid bar-energy curves, peak bar, range and drop detection from green LMMS PR #83, with the same targeted arrangement advice.
+
 ## 0.1.0-alpha.6
 
 - Add the official MCP Registry manifest and npm package identity.

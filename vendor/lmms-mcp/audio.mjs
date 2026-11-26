@@ -371,7 +371,12 @@ export function analyze(audio, { sections = [], pitch = false, expectedBpm, expe
     rhythm.expectedSwing = requestedSwing;
     rhythm.swingMatch = swing.ratio === null ? null : Math.abs(swing.ratio - requestedSwing) <= 0.25;
   }
+  const arrangementBpm = expectedBpm === undefined ? tempo.bpm : expectedBpm;
+  const energy = Number.isFinite(arrangementBpm) && arrangementBpm > 0
+    ? barEnergy(audio, { bpm: arrangementBpm, beatsPerBar: 4 }) : null;
+  const arrangement = energy === null ? null : { ...energy, drops: findDrops(energy.bars) };
   const report = {
+    arrangement,
     rhythm,
     key,
     tempo,
@@ -411,6 +416,11 @@ export function loopJoinClicks(loop) {
 // Plain-language warnings an agent can act on without listening.
 export function advise(report, { loop = false, targetLufs } = {}) {
   const notes = [];
+  const arrangement = report.arrangement;
+  if (arrangement) {
+    if (arrangement.bars.length >= 16 && arrangement.drops.length === 0) notes.push('No drop found: no bar rises 6 dB over the previous four. Add a build and a clear drop if this is a dance track.');
+    if (arrangement.rangeDb !== null && arrangement.rangeDb < 3 && arrangement.bars.length >= 8) notes.push('Bar-to-bar energy varies by under 3 dB: the arrangement may feel flat.');
+  }
   const ref = report.referenceMatch;
   if (ref) {
     if (ref.gainDb != null && Math.abs(ref.gainDb) >= 3) notes.push(`The mix is ${Math.abs(ref.gainDb).toFixed(1)} dB ${ref.gainDb > 0 ? 'quieter' : 'louder'} than the reference: match levels before comparing tone.`);
@@ -1217,4 +1227,86 @@ export function compareToReference(mix, ref) {
     widthDelta: widthRaw == null ? null : roundN(widthRaw, 3),
     levelMatch: 'rms',
   };
+}
+
+// Bar-energy maths ported from lingxi-gbv-20261125-01.
+function energyRound1(x) {
+  return Number(x.toFixed(1));
+}
+
+function energyRound4(x) {
+  return Number(x.toFixed(4));
+}
+
+export function barEnergy({ sampleRate, channels }, { bpm, beatsPerBar = 4, offset = 0 } = {}) {
+  if (!Number.isFinite(bpm) || bpm <= 0) {
+    throw new RangeError('bpm must be a finite number greater than 0');
+  }
+  if (!Number.isInteger(beatsPerBar) || beatsPerBar <= 0) {
+    throw new RangeError('beatsPerBar must be a positive integer');
+  }
+  if (!Number.isFinite(offset) || offset < 0) {
+    throw new RangeError('offset must be a finite number greater than or equal to 0');
+  }
+
+  const n = channels && channels.length > 0 ? channels[0].length : 0;
+  const nCh = channels && channels.length > 0 ? channels.length : 0;
+  const barLen = Math.round(sampleRate * 60 * beatsPerBar / bpm);
+  if (!Number.isSafeInteger(barLen) || barLen < 1) throw new RangeError('bar length must be a positive safe integer');
+  const start = Math.round(offset * sampleRate);
+  const floorRms = 10 ** -4.5;
+  const bars = [];
+
+  for (let s = start; s + barLen <= n; s += barLen) {
+    let sumSq = 0;
+    for (let i = s; i < s + barLen; i++) {
+      let mix = 0;
+      for (let c = 0; c < nCh; c++) {
+        mix += channels[c][i];
+      }
+      mix /= nCh;
+      sumSq += mix * mix;
+    }
+    const rms = Math.sqrt(sumSq / barLen);
+    bars.push(energyRound1(20 * Math.log10(Math.max(rms, floorRms))));
+  }
+
+  let peakBar = null;
+  let rangeDb = null;
+  if (bars.length > 0) {
+    let maxVal = bars[0];
+    let minVal = bars[0];
+    peakBar = 0;
+    for (let i = 1; i < bars.length; i++) {
+      if (bars[i] > maxVal) {
+        maxVal = bars[i];
+        peakBar = i;
+      }
+      if (bars[i] < minVal) {
+        minVal = bars[i];
+      }
+    }
+    rangeDb = energyRound1(maxVal - minVal);
+  }
+
+  return { barSeconds: energyRound4(barLen / sampleRate), bars, peakBar, rangeDb };
+}
+
+export function findDrops(bars, { rise = 6, window = 4, minGap = 8 } = {}) {
+  const drops = [];
+  let lastDrop = null;
+  for (let i = 1; i < bars.length; i++) {
+    const from = Math.max(0, i - window);
+    let sum = 0;
+    for (let j = from; j < i; j++) {
+      sum += bars[j];
+    }
+    const base = sum / (i - from);
+    const jump = bars[i] - base;
+    if (jump >= rise && (lastDrop === null || i - lastDrop >= minGap)) {
+      drops.push({ bar: i, jumpDb: energyRound1(jump) });
+      lastDrop = i;
+    }
+  }
+  return drops;
 }

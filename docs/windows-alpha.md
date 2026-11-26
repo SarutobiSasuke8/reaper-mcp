@@ -31,6 +31,25 @@ REAPER_MCP_ALLOW_WRITES = "true"
 
 Writes must be enabled in both the MCP process and REAPER's inherited environment. The bridge has only an allowlisted protocol, no arbitrary ReaScript execution. Its folder is a trusted local IPC boundary, not a network service; keep it private to the local account.
 
+## Adjust a live plugin
+
+Available in the development build after alpha.6. Start its matching Lua bridge. Use `mode: live` throughout.
+
+1. Read `/tracks/0/fx` with `reaper_get`. Pick a slot and copy its `guid`.
+2. Call `reaper_list` on `/tracks/0/fx/0/parameters`. Pages contain the index, name, normalised value and display text when the plugin supplies it. Use `offset` and `limit` to page through large instruments.
+3. Enable the `editing` toolset. Call `reaper_run` with the following arguments, replacing the GUID and indices with the values you inspected.
+
+```json
+{
+  "mode": "live",
+  "capability": "live_set_fx_parameter",
+  "args": {"track": 0, "fx": 0, "fxGuid": "<guid from the FX list>", "parameter": 0, "normalized": 0.5},
+  "dryRun": true
+}
+```
+
+The preview returns the current control and requested value. Apply with `dryRun: false` and use `after` for the actual value. A stepped control can round the request. A changed project revision or mismatched FX GUID rejects the edit. REAPER records the edit in a named undo block. When the value changes and REAPER exposes that block, the result includes an `undoToken`. Pass it to `live_revert_fx_edit` to undo that specific edit. The token expires on use, a revision change, a project switch or a bridge restart. This operation addresses top-level online track FX. To compare audio, render the same beat range before and after the edit, then pass the two WAV paths to `reaper_analyze` as `file` and `referencePath`.
+
 ## Modes and capabilities
 
 | Mode | Supported now |

@@ -112,6 +112,14 @@ export class LiveBridge {
     this.context = { project: snapshot.project, revision: snapshot.revision };
     return snapshot.value;
   }
+  async list(objectPath: string, offset: number, limit: number): Promise<unknown> {
+    if (/^\/tracks\/\d+\/fx\/\d+\/parameters$/.test(objectPath))
+      return this.get(`${objectPath}/page/${offset}/${limit}`);
+    const all = await this.get(objectPath);
+    if (!Array.isArray(all))
+      throw new ToolError("invalid_path", "List requires an array path");
+    return { total: all.length, offset, items: all.slice(offset, offset + limit) };
+  }
   async mutate(
     action: string,
     fields: string[],

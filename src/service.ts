@@ -333,7 +333,7 @@ export class ReaperService {
       live: this.live ? await this.live.available() : false,
       liveCapabilities: [
         "project/track inspection",
-        "FX inventory",
+        "FX inventory, paged parameter inspection and guarded parameter edits",
         "track name/gain/pan/mute",
         "native track, catalogue instrument and beat-based MIDI insertion",
         "native project new/open/save and isolated mix render",

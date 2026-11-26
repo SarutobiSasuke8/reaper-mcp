@@ -80,6 +80,11 @@ export const sectionSchema = z.object({startBeat: beat, endBeat: beat,
   tailSeconds: z.number().finite().min(0).max(30).default(0),
 }).strict().refine(s => s.endBeat > s.startBeat, "Section must move forward");
 export const musicSchemas = {
+  live_revert_fx_edit: z.object({ undoToken: text }).strict(),
+  live_set_fx_parameter: z.object({
+    track, fx: z.number().int().nonnegative(), fxGuid: text,
+    parameter: z.number().int().nonnegative(), normalized: z.number().min(0).max(1),
+  }).strict(),
   live_edit_performance: editPerformance,
   live_insert_performance: performance,
   live_add_track: z.object({ name: text }).strict(),
@@ -108,7 +113,11 @@ export const musicCapabilities = Object.entries(musicSchemas).map(
     toolset: "editing",
     modes: ["live"],
     description:
-      name === "live_edit_performance"
+      name === "live_revert_fx_edit"
+        ? "Undo the most recent guarded FX edit using its returned undoToken while the project is still at that revision."
+        : name === "live_set_fx_parameter"
+        ? "Set one track FX parameter. Read /tracks/{track}/fx for its GUID and /tracks/{track}/fx/{fx}/parameters for controls. Supply normalized 0-1. Returns native readback."
+        : name === "live_edit_performance"
         ? "Edit indexed notes and catalogue keyswitches in an existing MIDI take. Read notes and item metadata first. Beats are clip-relative. Ramps replace matching CC/channel events within inclusive ranges. Rejects looped, pooled or external MIDI; maximum 128 expanded edits. Re-read indices after every edit."
         : name === "live_insert_performance"
         ? "Insert notes, CC events, sampled linear dynamics ramps and catalogue-named keyswitch articulations in one clip; offsets are clip-relative quarter-note beats, maximum 128 expanded events. Place keyswitches before musical notes."
@@ -159,6 +168,9 @@ export async function runMusic(
   const a: any = schema.parse(raw);
   let fields: string[];
   if (capability === "live_add_track") fields = [a.name];
+  else if (capability === "live_revert_fx_edit") fields = [a.undoToken];
+  else if (capability === "live_set_fx_parameter")
+    fields = [String(a.track), String(a.fx), a.fxGuid, String(a.parameter), String(a.normalized)];
   else if (capability === "live_edit_performance") {
     const entry = a.articulations.length ? (await instruments()).find(e => e.id === a.instrument) : undefined;
     const arts = a.articulations.map((e: any) => {

@@ -50,7 +50,46 @@ local function item_view(p,it)
     startBeat=start,lengthBeats=reaper.TimeMap2_timeToQN(p,pos+reaper.GetMediaItemInfo_Value(it,'D_LENGTH'))-start,
     looped=reaper.GetMediaItemInfo_Value(it,'B_LOOPSRC')~=0}
 end
+local function track_fx(p, track_index, fx)
+  local t=assert(reaper.GetTrack(p,track_index),"Track not found")
+  assert(fx>=0 and fx<reaper.TrackFX_GetCount(t),"Track FX not found")
+  assert(not reaper.TrackFX_GetOffline(t,fx),"Track FX is offline")
+  return t
+end
+local function fx_parameter(t, fx, index)
+  assert(index>=0 and index<reaper.TrackFX_GetNumParams(t,fx),"Parameter not found")
+  local ok,name=reaper.TrackFX_GetParamName(t,fx,index,"")
+  assert(ok,"Cannot read parameter name")
+  local formatted,label=reaper.TrackFX_GetFormattedParamValue(t,fx,index,"")
+  return {index=index,name=name,normalized=reaper.TrackFX_GetParamNormalized(t,fx,index),
+    formatted=formatted and label or nil}
+end
 local function get_value(p, object_path)
+  local ti,fi,pi=object_path:match("^/tracks/(%d+)/fx/(%d+)/parameters/(%d+)$")
+  local offset,limit
+  if not ti then
+    ti,fi,offset,limit=object_path:match("^/tracks/(%d+)/fx/(%d+)/parameters/page/(%d+)/(%d+)$")
+  end
+  if not ti then ti,fi=object_path:match("^/tracks/(%d+)/fx/(%d+)/parameters$") end
+  if ti then
+    local fx=tonumber(fi)
+    local t=track_fx(p,tonumber(ti),fx)
+    if pi then return fx_parameter(t,fx,tonumber(pi)) end
+    local count=reaper.TrackFX_GetNumParams(t,fx)
+    local first,last=0,count-1
+    if offset then
+      first=tonumber(offset)
+      limit=tonumber(limit)
+      assert(first<=100000 and limit>=1 and limit<=200,"Invalid parameter page")
+      last=math.min(last,first+limit-1)
+    else
+      assert(count<=256,"Use reaper_list for more than 256 parameters")
+    end
+    local parameters={__array=true}
+    for i=first,last do parameters[#parameters+1]=fx_parameter(t,fx,i) end
+    if offset then return {total=count,offset=first,items=parameters} end
+    return parameters
+  end
   local vt,vi=object_path:match('^/tracks/(%d+)/items/(%d+)$')
   if vt then return item_view(p,assert(reaper.GetTrackMediaItem(assert(reaper.GetTrack(p,tonumber(vt))),tonumber(vi)),"Item not found")) end
 
@@ -100,7 +139,7 @@ local function get_value(p, object_path)
     local fx={__array=true}; assert(reaper.TrackFX_GetCount(t)<=128,"FX limit exceeded")
     for i=0,reaper.TrackFX_GetCount(t)-1 do
       local _,name=reaper.TrackFX_GetFXName(t,i)
-      fx[#fx+1]={index=i,name=name,enabled=reaper.TrackFX_GetEnabled(t,i),parameterCount=reaper.TrackFX_GetNumParams(t,i)}
+      fx[#fx+1]={index=i,name=name,guid=reaper.TrackFX_GetFXGUID(t,i),enabled=reaper.TrackFX_GetEnabled(t,i),parameterCount=reaper.TrackFX_GetNumParams(t,i)}
     end
     return fx
   end
@@ -112,11 +151,37 @@ local function number(s,lo,hi,integer)
   local n=tonumber(s); assert(n and n==n and n>=lo and n<=hi and (not integer or n%1==0),"Invalid number")
   return n
 end
+local fx_undo, fx_edit_count = nil, 0
 local function music(p,a)
   local action,dry=a[7],a[8]; assert(dry=="0" or dry=="1","Invalid dryRun")
   local result={dryRun=dry=="1",action=action}
   local perform
-  if action=="project_new" then
+  local undo_label='REAPER MCP: '..action
+  if action=="live_revert_fx_edit" then
+    local _,identity,revision=current()
+    assert(fx_undo and fx_undo.token==a[9] and fx_undo.project==identity and fx_undo.revision==revision
+      and reaper.Undo_CanUndo2(p)==fx_undo.label,"FX edit is no longer the current undo step")
+    perform=function()
+      assert(reaper.Undo_DoUndo2(p)~=0,"REAPER could not undo the edit")
+      fx_undo=nil
+    end
+  elseif action=="live_set_fx_parameter" then
+    local fx=number(a[10],0,2147483647,true)
+    local t=track_fx(p,number(a[9],0,255,true),fx)
+    assert(reaper.TrackFX_GetFXGUID(t,fx)==a[11],"FX identity changed; inspect the chain again")
+    local index=number(a[12],0,2147483647,true)
+    if dry=="0" then
+      fx_edit_count=fx_edit_count+1
+      undo_label=undo_label..' #'..fx_edit_count
+    end
+    result.before=fx_parameter(t,fx,index)
+    result.requested=number(a[13],0,1,false)
+    perform=function()
+      assert(reaper.TrackFX_SetParamNormalized(t,fx,index,result.requested),"Plugin rejected parameter")
+      reaper.TrackFX_EndParamEdit(t,fx,index)
+      result.after=fx_parameter(t,fx,index)
+    end
+  elseif action=="project_new" then
     local tempo=number(a[9],20,300)
     perform=function() reaper.Main_OnCommand(40859,0); reaper.SetCurrentBPM(0,tempo,true) end
   elseif action=="project_open" or action=="project_save" or action=="snapshot" then
@@ -314,13 +379,18 @@ local function music(p,a)
     end
   else error("Unknown music operation") end
   if dry=="0" then
-    local useundo=action:match('^live_')~=nil
+    local useundo=action:match('^live_')~=nil and action~='live_revert_fx_edit'
     if useundo then reaper.Undo_BeginBlock2(p) end
     local ok,err=pcall(perform)
-    if useundo then reaper.Undo_EndBlock2(p,'REAPER MCP: '..action,-1) end
+    if useundo then reaper.Undo_EndBlock2(p,undo_label,-1) end
     reaper.UpdateArrange();assert(ok,err)
   end
   local _,identity,revision=current();result.project=identity;result.revision=revision
+  if action=="live_set_fx_parameter" and result.after and result.before.normalized~=result.after.normalized
+    and reaper.Undo_CanUndo2(p)==undo_label then
+    result.undoToken=session..':'..fx_edit_count
+    fx_undo={token=result.undoToken,label=undo_label,project=identity,revision=revision}
+  end
   return result
 end
 

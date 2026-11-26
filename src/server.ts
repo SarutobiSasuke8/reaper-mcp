@@ -265,17 +265,7 @@ export async function call(
       } else if (name === "reaper_get")
         value = await service.live!.get(args.path as string);
       else if (name === "reaper_list") {
-        const all = await service.live!.get(args.path as string);
-        if (!Array.isArray(all))
-          throw new ToolError("invalid_path", "List requires an array path");
-        value = {
-          total: all.length,
-          offset: args.offset,
-          items: all.slice(
-            args.offset as number,
-            (args.offset as number) + (args.limit as number),
-          ),
-        };
+        value = await service.live!.list(args.path as string, args.offset as number, args.limit as number);
       } else if (name === "reaper_set")
         value = await service.live!.set(
           args.path as string,
@@ -318,6 +308,8 @@ export async function call(
                 "/tracks",
                 "/tracks/{index}",
                 "/tracks/{index}/fx",
+                "/tracks/{index}/fx/{fx}/parameters",
+                "/tracks/{index}/fx/{fx}/parameters/{parameter}",
               ],
               set: [
                 "/tracks/{index}/name",

@@ -5,7 +5,7 @@ This project is MIT-licensed. REAPER is separately installed and is not distribu
 | Source | Revision | Used here | Licence |
 |---|---|---|---|
 | House MCP server template | `6e6ba1ce9e2d42fb2f3ce95f80a9964b78938fb4` | Adapted tool contracts, error boundary, stdio tests and TypeScript configuration | MIT, copyright 2026 Alexei Udall |
-| lmms-mcp audio measurements | `e447956bb9437116d291ba05bb7c917f39279de4` ([source PR](https://github.com/SarutobiSasuke8/lmms-mcp/pull/81)) | Byte-preserved audio.mjs, k-weight.mjs, lra.mjs and stereo.mjs under vendor/lmms-mcp/ | MIT; complete notice in vendor/lmms-mcp/LICENSE |
+| lmms-mcp audio measurements | `7d6f40af323b4aca58391c9fccfc47efea7eea47` ([source PR](https://github.com/SarutobiSasuke8/lmms-mcp/pull/83)) | Byte-preserved audio.mjs, k-weight.mjs, lra.mjs and stereo.mjs under vendor/lmms-mcp/ | MIT; complete notice in vendor/lmms-mcp/LICENSE |
 
 Package dependency licences are retained by npm. No REAPER binary, paid plugin, stock sample library or community REAPER MCP code is included. Later music ports require a source path, commit and licence entry before inclusion.
 

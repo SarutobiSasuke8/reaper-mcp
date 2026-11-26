@@ -45,7 +45,10 @@ jobs:
           # Published x64 checksum in Microsoft's Cockos.REAPER 7.86 WinGet manifest.
           if ((Get-FileHash $installer).Hash -ne '02AF50CC5C5417B92EFDE1E8FBDB4F37564E8545C3DA409782ECBE7C0E90DF76') { throw 'Unexpected REAPER installer checksum' }
           $install = Start-Process $installer -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden
-          if ($install.ExitCode -ne 0) { throw "Installer exited $($install.ExitCode)" }
+          # WinGet lists 1223 as a successful installer exit. Verify the executable as well.
+          if ($install.ExitCode -notin 0,1223) { throw "Installer exited $($install.ExitCode)" }
+          $binary = Get-Item 'C:/Program Files/REAPER (x64)/reaper.exe'
+          if ($binary.VersionInfo.ProductVersion -notlike '7.86*') { throw 'REAPER 7.86 was not installed' }
       - run: npm ci
       - name: Install the packed server and exercise both native workflows
         shell: pwsh

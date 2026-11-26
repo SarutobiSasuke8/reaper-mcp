@@ -68,6 +68,27 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node $check --routing
           exit $LASTEXITCODE
+      - name: Check out the pinned reference server for the optional comparison
+        if: contains(github.event.pull_request.labels.*.name, 'benchmark-sidechain')
+        uses: actions/checkout@v4
+        with:
+          repository: TwelveTake-Studios/reaper-mcp
+          ref: 3718e0158db96ca59aa9b5c982417770368bde0e
+          path: reference-server
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        if: contains(github.event.pull_request.labels.*.name, 'benchmark-sidechain')
+        with:
+          python-version: '3.12'
+      - name: Compare sidechain audio on the same machine and fixture
+        if: contains(github.event.pull_request.labels.*.name, 'benchmark-sidechain')
+        shell: pwsh
+        run: |
+          python -m pip install -r reference-server/requirements.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $report = Get-Item "$env:RUNNER_TEMP/reaper-acceptance/reaper-release-*/routing-check.json"
+          python scripts/benchmark-sidechain.py $report.FullName reference-server
+          exit $LASTEXITCODE
       - name: Retain measurements and listening copies
         uses: actions/upload-artifact@v4
         if: always()
@@ -76,6 +97,7 @@ jobs:
           path: |
             ${{ runner.temp }}/reaper-acceptance/reaper-release-*/release-check.json
             ${{ runner.temp }}/reaper-acceptance/reaper-release-*/routing-check.json
+            ${{ runner.temp }}/reaper-acceptance/reaper-release-*/peer-check.json
             ${{ runner.temp }}/reaper-acceptance/reaper-release-*/audition-*/A.wav
             ${{ runner.temp }}/reaper-acceptance/reaper-release-*/audition-*/B.wav
             ${{ runner.temp }}/reaper-acceptance/reaper-release-*/audition-*/audition.rpp

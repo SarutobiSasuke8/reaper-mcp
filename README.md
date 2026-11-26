@@ -34,7 +34,7 @@ For another stdio client, use `npx` with arguments `-y @sarutobi-sasuke/reaper-m
 - A compact surface of 14 MCP tools, with capability discovery and guarded execution.
 - Two modes:
   - **Offline:** write `.RPP` projects from a backend-neutral song model and render headlessly with `reaper -renderproject`.
-  - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Native track/instrument insertion, MIDI clips, CC/dynamics ramps, named keyswitch articulations, guarded existing-note/keyswitch edits, scoped CC ramp replacement and save/reopen/section renders are also available. See [performance editing](docs/performance-control.md). The development branch adds guarded [live FX parameter editing](docs/windows-alpha.md#adjust-a-live-plugin). Transport control remains planned.
+  - **Live today:** Lua bridge inspection of projects, tracks and FX, plus guarded track name/gain/pan/mute edits. Native track/instrument insertion, MIDI clips, CC/dynamics ramps, named keyswitch articulations, guarded existing-note/keyswitch edits, scoped CC ramp replacement and save/reopen/section renders are also available. See [performance editing](docs/performance-control.md). The development branch adds guarded [live FX parameter editing](docs/windows-alpha.md#adjust-a-live-plugin). It also adds [loudness-matched A/B listening projects, sidechain sends, native stems and scoped FX automation](docs/windows-alpha.md#audition-two-versions-at-matched-loudness). Transport control remains planned.
 - Builds on MIT-licensed audio-analysis code from [lmms-mcp](https://github.com/SarutobiSasuke8/lmms-mcp). Broader genre, arrangement and vocal workflows remain roadmap work.
 
 ## REAPER licensing

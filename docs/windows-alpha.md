@@ -64,7 +64,7 @@ Render the same passage twice. Enable the editing toolset, then call `reaper_run
 
 Open the returned `audition.rpp` or play the two returned WAV files. The project aligns both copies at zero with B muted. To hear B, mute A and unmute B. Both WAVs keep the source timing. The pair must have the same frame count, sample rate and channel count. Use the same timeline start for each render.
 
-The default target is −18 LUFS. A shared lower target accommodates peaks when necessary. The tool applies constant gain, encodes 16-bit PCM, then measures the listening copies again. It returns paths only if they match within 0.5 LU with at least 1 dB of estimated true-peak headroom. Silence or an incompatible pair produces an error. A dry run reports measurements without creating files. Each applied run gets its own folder.
+The default target is −18 LUFS. A shared lower target accommodates peaks when necessary. The tool applies constant gain, encodes 16-bit PCM, then measures the listening copies again. It returns paths only if they match within 0.5 LU with at least 1 dB of estimated true-peak headroom. Silence or an incompatible pair produces an error. A dry run reports measurements without creating files. Each applied run gets its own folder. Clips shorter than one 400 ms metering block use an ungated estimate and report `gated: false`.
 
 ## Live routing, stems and FX automation
 

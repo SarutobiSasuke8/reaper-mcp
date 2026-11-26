@@ -18,11 +18,12 @@ export const auditionCapability = {
 };
 interface Audio { frames: number; sampleRate: number; channels: Float32Array[] }
 function measure(audio: Audio) {
-  const lufs = loudness(audio).integratedLufs;
+  const measurement = loudness(audio);
+  const lufs = measurement.integratedLufs;
   const peakDb = 20 * Math.log10(truePeak(audio));
   if (!Number.isFinite(lufs) || !Number.isFinite(peakDb))
     throw new ToolError("unmeasurable_audio", "Both versions need measurable non-silent audio");
-  return { lufs: lufs as number, peakDb };
+  return { lufs: lufs as number, peakDb, gated: Boolean(measurement.gated) };
 }
 
 export async function createAudition(workspace: Workspace, args: z.infer<typeof auditionCapability.schema>, dryRun: boolean) {

@@ -202,6 +202,8 @@ local function music(p,a)
     assert(math.abs(point.timeSeconds-number(a[14],0,86400))<0.0000001,"Point time changed")
     assert(left.timeSeconds<point.timeSeconds and point.timeSeconds<right.timeSeconds,"Distinct anchors required")
     assert(left.shape<=1 and point.shape<=1,"Only linear and square segments supported")
+    if index>=2 then assert(envelope_point(env,index-2).shape<=1,"Curved outer anchor unsupported") end
+    assert(right.shape<=1,"Curved outer anchor unsupported")
     result.before=point;result.startSeconds=left.timeSeconds;result.endSeconds=right.timeSeconds
     result.requested=number(a[15],0,1)
     perform=function()

@@ -350,6 +350,26 @@ local function get_value(p, object_path)
     end
     return sends
   end
+  if field=="notes" then
+    -- Every MIDI note on the track, across its items, as project beats.
+    local notes={__array=true}
+    for i=0,reaper.CountTrackMediaItems(t)-1 do
+      local it=reaper.GetTrackMediaItem(t,i)
+      local take=reaper.GetActiveTake(it)
+      if take and reaper.TakeIsMIDI(take) and reaper.GetMediaItemInfo_Value(it,'B_MUTE')==0 then
+        local _,count=reaper.MIDI_CountEvts(take)
+        assert(#notes+count<=20000,"Note read limit; this track has too many notes")
+        for n=0,count-1 do
+          local ok,_,muted,start,ending,channel,pitch,velocity=reaper.MIDI_GetNote(take,n)
+          if ok and not muted then
+            notes[#notes+1]={item=i,index=n,startBeat=reaper.MIDI_GetProjQNFromPPQPos(take,start),
+              endBeat=reaper.MIDI_GetProjQNFromPPQPos(take,ending),channel=channel,pitch=pitch,velocity=velocity}
+          end
+        end
+      end
+    end
+    return notes
+  end
   if field=="items" then
     local count=reaper.CountTrackMediaItems(t)
     assert(count<=2048,"Item read limit; this track has too many items")

@@ -220,7 +220,7 @@ export function buildPiece(a: z.infer<typeof composeSchemas.live_compose_piece>,
       personaWarnings: piece.personaWarnings ?? [],
       next: silent.length
         ? "Some tracks have no instrument and will be silent; read /instruments and insert one with live_insert_instrument, then render and analyse"
-        : "Run live_auto_mix to set balance and loudness by measurement, then render and listen",
+        : "Run live_lint_arrangement to check the notes, live_apply_groove for feel, then live_auto_mix to set balance and loudness",
     },
   };
 }

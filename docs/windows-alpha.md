@@ -130,6 +130,59 @@ One call can carry up to 2048 MIDI events and a request up to 1 MB.
 
 The composition code comes from LMMS MCP and is included unchanged. What it gives you is correct, playable material with a form, a motif that returns and parts that fit together. How good it sounds still depends on the instruments, and on listening to the render and adjusting.
 
+## Check and loosen the notes
+
+Two tools work on the notes themselves, before any mixing.
+
+`live_lint_arrangement` reads the session and tells you what is musically wrong. It changes nothing.
+
+```json
+{"capability": "live_lint_arrangement", "args": {"key": "D minor"}}
+{"capability": "live_lint_arrangement", "args": {"roles": {"3": "counter"}, "strict": true}}
+```
+
+| Finding | What it means |
+| --- | --- |
+| `clash.harsh-interval` | Two parts a semitone or minor ninth apart on strong beats |
+| competing melodies | More than one part behaving like a lead at once |
+| `register.overlap` | A part sitting inside the lead's range and masking it |
+| `key.*` | Notes outside the key, or no clear key |
+| density | Bars with too much or nothing going on |
+| motif | A lead with no idea that comes back |
+| `role.missing` | A track whose role had to be guessed from its notes |
+
+- Each finding names its tracks by index, lists the bars and gives a fix.
+- `error` findings make `pass` false. With `strict`, warnings do too. `score` is 0 to 100.
+- Roles come from track names first (Lead, Bass, Drums, Pad, Keys and similar), then from the notes. Pass `roles` to correct one, and `key` to check against the key you intend.
+- Muted tracks and muted items are left out. Audio is not checked. The lint assumes 4/4.
+- `/tracks/{index}/notes` reads every MIDI note on a track across its items, if you want the notes themselves.
+
+`live_apply_groove` gives a MIDI clip a feel, as one undo step.
+
+```json
+{"capability": "live_apply_groove", "args": {"track": 4, "item": 0, "takeGuid": "{GUID}",
+  "template": "mpc-swing-60", "pitches": [42, 44, 46]}}
+{"capability": "live_apply_groove", "args": {"track": 0, "item": 0, "takeGuid": "{GUID}",
+  "template": "triplet", "grid": "8th", "humanize": {"timingMs": 8, "velocity": 10, "seed": 3}}}
+```
+
+| Template | Off-beat delay, as a share of the step |
+| --- | --- |
+| `house-shuffle` | 12% |
+| `mpc-swing-60` | 15% |
+| `ukg-shuffle` | 20% |
+| `mpc-swing-70` | 25% |
+| `triplet` | 33% (on the `8th` grid this is jazz swing) |
+
+- Pass `swing` (0 to 0.5) for your own amount. `strength` scales any swing.
+- `grid` is `16th` or `8th`. Swing moves only notes that sit on the grid's off-beat steps, so running it twice does not double it.
+- `humanize` adds random timing up to `timingMs` and velocity up to `velocity`. The same `seed` gives the same result. `tight` halves both, for kicks, snares and bass.
+- `pitches` limits the edit to those MIDI notes, for example only the hats in a drum clip.
+- Notes keep their length and stay inside the clip. Clips over 2048 notes must be split first.
+- `dryRun` reports how many notes would move and by how much.
+
+A workable order for a new piece: compose, lint and fix, add groove, then auto-mix.
+
 ## Auto-mix a live session
 
 `live_auto_mix` sets track levels by measuring the audio, then checks its own work.

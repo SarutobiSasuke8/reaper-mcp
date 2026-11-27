@@ -46,13 +46,33 @@ try{
  const track = await call('reaper_get',{path:'/tracks/0'});
  const item = await call('reaper_get',{path:'/tracks/0/items/0'});
  await run('live_edit_performance',{track:track.guid,item:0,takeGuid:item.takeGuid,notes:[{index:2,velocity:40}]});
+ const ride = {track:track.guid,rideId:'opening',unit:'seconds',points:[
+   {position:0,gainDb:0},{position:.04,gainDb:6},{position:.32,gainDb:6},{position:.38,gainDb:0}
+ ]};
+ const effects = () => call('reaper_get',{path:'/tracks/0/fx'});
+ const originalFx = await effects();
+ await run('live_add_gain_ride',ride,true);
+ assert.deepEqual(await effects(),originalFx);
+ await run('live_add_gain_ride',ride);
+ await assert.rejects(run('live_add_gain_ride',ride),/already exists/);
  await call('reaper_project',{operation:'save',file:'revision-edited.rpp'});
  const candidateRender = await call('reaper_render',{target:'mix',timeoutMs:240000});
+ const reference = decodeWav(await readFile(path.join(root,rendered.files[0])));
+ const edited = decodeWav(await readFile(path.join(root,candidateRender.files[0])));
+ function level(audio,start,end){
+   const values=audio.channels[0].subarray(Math.round(start*audio.sampleRate),Math.round(end*audio.sampleRate));
+   return 10*Math.log10(values.reduce((sum,sample)=>sum+sample*sample,0)/values.length);
+ }
+ function gain(start,end){return level(edited,start,end)-level(reference,start,end);}
+ assert.ok(Math.abs(gain(.09,.24)-6)<.2,'Opening ride gain: '+gain(.09,.24));
+ assert.ok(Math.abs(gain(1.05,1.20))<.02,'Unexpected gain after ride: '+gain(1.05,1.20));
  const listen = await run('audition_ab',{a:rendered.files[0],b:candidateRender.files[0],projects:{a:'acceptance.rpp',b:'revision-edited.rpp'},section:{startSeconds:0,endSeconds:1.5}});
  assert.ok(listen.deltaLu <= 0.5);
  const selected = await run('select_audition_render',{manifest:listen.manifest,choice:'B'});
  assert.deepEqual(await readFile(path.join(root,selected.file)),await readFile(path.join(root,candidateRender.files[0])));
- await call('reaper_project',{operation:'open',file:selected.project.file});
+ await client.close();client=null;await stopOwned();await delay(5500);
+ env.REAPER_MCP_START_PROJECT=selected.project.file;
+ await connect();await ready();await call('reaper_enable_toolset',{name:'editing'});
  const reopenedNotes = await call('reaper_get',{path:'/tracks/0/items/0/notes'});
  assert.equal(reopenedNotes[2].velocity,40);
  const reopened = await call('reaper_render',{target:'mix',timeoutMs:240000});
@@ -62,7 +82,20 @@ try{
  const rejected = await compare(rendered.files[0]);
  assert.equal(rejected.passed,false);
  assert.ok(rejected.relativeRmsError>0.05);
+ await run('live_set_tempo',{beat:0,bpm:120,timeSignature:{numerator:3,denominator:4}});
+ await run('live_set_tempo',{beat:3,bpm:90,timeSignature:{numerator:6,denominator:8}});
+ for(const [unit,positions] of [['bars',[0,1,1.5,2]],['quarterNotes',[0,3,4.5,6]]]){
+   const preview=await run('live_add_gain_ride',{
+     ...ride,rideId:'meter-check',unit,
+     points:positions.map((position,i)=>({position,gainDb:i===1?2:0}))
+   },true);
+   for(const [index,time] of [0,1.5,2.5,3.5].entries()){
+     assert.ok(Math.abs(preview.points[index].timeSeconds-time)<1e-5,JSON.stringify(preview));
+   }
+ }
  assert.deepEqual(await readFile(path.join(root,'acceptance.rpp')),sourceBytes);
  const report={result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,checks:['fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen','editable candidate fork, matched selection and verified reopened note edit'],rendered,measurement,verified,rejected};
+ report.ride={requestedDb:6,measuredDb:gain(.09,.24),afterRideDb:gain(1.05,1.20)};
+ report.checks.push('approved project reopened after managed process restart','scoped gain verified inside and after ride','3/4 to 6/8 tempo map in bars and quarter notes');
  await writeFile(path.join(root,'release-check.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{if(client)await client.close();await stopOwned();}

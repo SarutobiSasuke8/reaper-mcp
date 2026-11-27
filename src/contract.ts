@@ -13,7 +13,7 @@ const groups: [string, "stable" | "experimental", string[]][] = [
   ["scripts/editing-check.mjs", "stable", ["live_edit_performance", "live_set_fx_parameter", "live_revert_fx_edit"]],
   ["scripts/editing-check.mjs --routing", "stable", ["live_edit_fx_envelope_point", "live_add_send", "audition_ab"]],
   ["scripts/batch-check.mjs", "stable", ["live_batch", "live_insert_midi"]],
-  ["scripts/windows-release-check.mjs", "experimental", ["fork_saved_project", "verify_audition_render"]],
+  ["scripts/windows-release-check.mjs", "experimental", ["fork_saved_project", "verify_audition_render", "live_add_gain_ride"]],
   ["test/audition.test.ts", "experimental", ["select_audition_render"]],
   ["scripts/arrange-check.mjs", "experimental", ["live_transport", "live_add_marker", "live_edit_marker", "live_delete_marker", "live_set_tempo", "live_delete_tempo_marker", "live_insert_audio", "live_edit_item", "live_split_item", "live_delete_item", "live_delete_track"]],
   ["scripts/compose-check.mjs", "experimental", ["live_compose_piece", "live_write_part"]],

@@ -29,7 +29,13 @@ Stable scope follows the individual operation's documented limits. Offline conve
 
 For a deterministic source, independently render the selected project and call `verify_audition_render` with the selection receipt and new full WAV. The check requires aligned full renders and compares samples inside the approved interval. A relative RMS error above 1% fails. If delivery gain changed, supply that known adjustment in dB. This checks reproducibility; variable sample playback can still require a listening decision. Keep the exact approved WAV when delivery must reproduce that take.
 
+## Scoped gain automation
+
+The experimental `live_add_gain_ride` appends the bundled Volume/Pan Adjustment JSFX to a stereo track by GUID. Supply increasing positions in seconds, quarter notes or zero-based fractional bars and a zero dB first and last point. Preview returns the times resolved against the project's current tempo map. A named instance prevents duplicate application with the same ride ID. The ride affects downstream audio, including post-FX sends. Remove it with the returned FX GUID and index. Applying it requires stopped transport, enabled track FX and trim/read or read automation.
+
 ## Release evidence
+
+The candidate incorporates the quick start proposed in PR #8 and the registry identifier and metadata from PR #9. Those earlier drafts reference superseded package details. The quick start points at the published alpha.6, while the candidate registry metadata tracks the packed alpha.7.
 
 The Windows workflow installs the packed tarball and exercises discovery over stdio on Node 20 and 22. The native job downloads the Node 22 artifact, starts isolated REAPER, tests restart/reopen and candidate selection, and runs the offline render, batch rollback, lifecycle, editing and routing fixtures. It runs for PRs, main, tags and manual dispatch. Unit, package and native results are separate. The Node 22 job also upgrades an alpha.6 installation in place and reopens its saved MIDI project. A second operator's clean-install run remains a release sign-off step.
 

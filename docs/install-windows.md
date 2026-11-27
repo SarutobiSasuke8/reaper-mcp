@@ -33,6 +33,19 @@ REAPER's bundled ReaSynth can verify basic MIDI-to-audio operation. For orchestr
 
 ## Development and verification
 
+### Candidate acceptance from an MCP client
+
+Use a fresh workspace and the candidate tarball from the Windows CI run. Install the tarball with the GitHub installation command above, substituting its actual filename and a separate installation directory. Point the client registration at that installation. Record the archive SHA-256 with `Get-FileHash` and the versions reported by REAPER and `reaper_health`. The following requests can be made in ordinary conversation with the client.
+
+1. Ask for the active project, bridge state, write permission and support status of `live_add_gain_ride`. Expect a live connection and an experimental ride.
+2. Ask for a new 120 BPM project with a stereo track, bundled ReaSynth and four quarter notes, one per beat. Save it as `baseline.rpp`, render a full stereo WAV and play it. Use the installed FX list to identify ReaSynth.
+3. Ask to fork the saved project beside its source as `candidate.rpp`. Preview then apply a 6 dB ride over the second note using the track GUID, with zero dB anchors at 0.45 and 1.05 seconds. Save the edited candidate, render its full WAV and request a matched A/B of the first two seconds with both saved project paths attached. Listen to both copies.
+4. Select B and retain the receipt. Close the saved candidate, restart the managed REAPER session, reopen the receipt's project, render again and verify the approved passage. For this stock synth, expect a pass. Verify the original WAV against the same receipt and expect a failure. Reopen the original project and check it has no ride.
+
+Record the receipt, both verification results and any manual intervention. If startup or output differs, record the failing step and the health response. A second operator's completed run on the release archive is a v1 sign-off item.
+
+### Developer checks
+
 ```powershell
 npm ci
 npm run check

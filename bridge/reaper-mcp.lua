@@ -484,11 +484,103 @@ define("live_revert_fx_edit",{},function(p,a,result)
   end
 end)
 
-define("live_set_fx_parameter",{undo=true,batch=true},function(p,a,result,ctx)
+-- An FX is addressed by track and chain index, and confirmed by its GUID. Inside a batch the GUID of an
+-- FX added by an earlier step is not known yet, so part of its name is accepted as the check instead.
+local function resolve_fx(p,a)
   local fx=num(a.fx,0,2147483647,true)
   local t=track_fx(p,a.track,fx)
-  assert(reaper.TrackFX_GetFXGUID(t,fx)==a.fxGuid,"FX identity changed; inspect the chain again")
-  local index=num(a.parameter,0,2147483647,true)
+  if a.fxGuid~=nil then
+    assert(reaper.TrackFX_GetFXGUID(t,fx)==a.fxGuid,"FX identity changed; inspect the chain again")
+  else
+    local wanted=text(a.fxName,"Give fxGuid or fxName",200)
+    assert(#wanted>=3,"fxName needs at least 3 characters")
+    local _,name=reaper.TrackFX_GetFXName(t,fx)
+    assert(name:lower():find(wanted:lower(),1,true),"FX identity changed; inspect the chain again")
+  end
+  return t,fx
+end
+-- A parameter is its index, or its exact name as listed under /tracks/{track}/fx/{fx}/parameters.
+local function resolve_parameter(t,fx,a)
+  if a.parameter~=nil then return num(a.parameter,0,2147483647,true) end
+  local wanted=text(a.parameterName,"Give parameter or parameterName",200)
+  local count=reaper.TrackFX_GetNumParams(t,fx)
+  assert(count<=4096,"Too many parameters to search by name; use the parameter index")
+  for i=0,count-1 do
+    local ok,name=reaper.TrackFX_GetParamName(t,fx,i,"")
+    if ok and name==wanted then return i end
+  end
+  error("Parameter not found",0)
+end
+local function installed_plugin(wanted)
+  text(wanted,"Invalid plugin")
+  for i=0,10000 do
+    local ok,name,ident=reaper.EnumInstalledFX(i)
+    if not ok then break end
+    if name==wanted or ident==wanted then return ident end
+  end
+  error("Plugin not installed/scanned; read /plugins",0)
+end
+define("live_add_fx",{undo=true,batch=true},function(p,a,result)
+  local t=resolve_track(p,a.track)
+  assert(reaper.TrackFX_GetCount(t)<128,"FX limit")
+  local found=installed_plugin(a.plugin)
+  return function()
+    local fx=reaper.TrackFX_AddByName(t,found,false,-1);assert(fx>=0,"Plugin failed to load")
+    if reaper.TrackFX_GetOffline(t,fx) then reaper.TrackFX_Delete(t,fx);error("Plugin failed to load; inserted FX removed",0) end
+    local _,name=reaper.TrackFX_GetFXName(t,fx)
+    result.fx=fx;result.name=name;result.guid=reaper.TrackFX_GetFXGUID(t,fx);result.parameterCount=reaper.TrackFX_GetNumParams(t,fx)
+  end
+end)
+define("live_remove_fx",{undo=true,batch=true},function(p,a,result)
+  local t,fx=resolve_fx(p,a)
+  local _,name=reaper.TrackFX_GetFXName(t,fx)
+  result.before={index=fx,name=name,guid=reaper.TrackFX_GetFXGUID(t,fx)}
+  return function()
+    assert(reaper.TrackFX_Delete(t,fx),"FX removal failed")
+    result.fxCount=reaper.TrackFX_GetCount(t)
+  end
+end)
+-- Writes automation points for one FX parameter, creating the envelope when there is none.
+-- Existing points from the first new point to the last are replaced; points outside stay.
+define("live_write_fx_automation",{undo=true,batch=true},function(p,a,result)
+  assert(reaper.GetPlayStateEx(p)==0,"Stop transport before editing automation")
+  local t,fx=resolve_fx(p,a)
+  local param=resolve_parameter(t,fx,a)
+  fx_parameter(t,fx,param)
+  local _,minimum,maximum=reaper.TrackFX_GetParam(t,fx,param)
+  assert(minimum==0 and maximum==1,"Requires an unscaled 0-1 parameter")
+  local rows,last={},-1
+  local points=list(a.points,512)
+  assert(#points>=1,"Give at least one point")
+  for _,e in ipairs(points) do
+    assert(type(e)=="table","Invalid point")
+    local time=reaper.TimeMap2_QNToTime(p,num(e.beat,0,100000))
+    assert(time>last,"Points must move forward in time")
+    last=time
+    rows[#rows+1]={time=time,value=num(e.normalized,0,1),shape=e.shape==nil and 0 or num(e.shape,0,5,true)}
+  end
+  local existing=reaper.GetFXEnvelope(t,fx,param,false)
+  if existing then
+    assert(reaper.GetEnvelopeScalingMode(existing)==0,"Requires an unscaled 0-1 parameter")
+    assert(reaper.CountAutomationItems(existing)==0,"Envelope with automation items unsupported")
+  end
+  result.createsEnvelope=existing==nil
+  result.parameter=param
+  result.startSeconds=rows[1].time;result.endSeconds=last
+  return function()
+    local env=assert(reaper.GetFXEnvelope(t,fx,param,true),"Envelope creation failed")
+    assert(reaper.GetEnvelopeScalingMode(env)==0,"Requires an unscaled 0-1 parameter")
+    reaper.DeleteEnvelopePointRange(env,rows[1].time-0.0000005,last+0.0000005)
+    for _,r in ipairs(rows) do
+      assert(reaper.InsertEnvelopePoint(env,r.time,r.value,r.shape,0,false,true),"Envelope write failed")
+    end
+    reaper.Envelope_SortPoints(env)
+    result.pointCount=reaper.CountEnvelopePoints(env)
+  end
+end)
+define("live_set_fx_parameter",{undo=true,batch=true},function(p,a,result,ctx)
+  local t,fx=resolve_fx(p,a)
+  local index=resolve_parameter(t,fx,a)
   result.before=fx_parameter(t,fx,index)
   result.requested=num(a.normalized,0,1,false)
   if not ctx.dry and not ctx.batch then

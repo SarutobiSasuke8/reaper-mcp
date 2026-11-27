@@ -83,6 +83,20 @@ const editPerformance = z.object({
     if (a.ramps.slice(0,i).some(q => q.channel===r.channel && q.controller===r.controller && q.endBeat>=r.startBeat && r.endBeat>=q.startBeat)) fail("Overlapping controller ranges");
   });
 });
+// An FX is its chain index plus a check: its GUID, or part of its name when the GUID is not known yet
+// (an FX added earlier in the same batch). A parameter is its index or its exact listed name.
+const fxRef = {
+  fx: z.number().int().nonnegative(),
+  fxGuid: text.optional(),
+  fxName: z.string().min(3).max(200).regex(/^[^\r\n\x00]+$/).optional(),
+  parameter: z.number().int().nonnegative().optional(),
+  parameterName: text.optional(),
+};
+function checkFxRef(a: { fxGuid?: string; fxName?: string; parameter?: number; parameterName?: string }, ctx: z.RefinementCtx, needsParameter = true) {
+  const fail = (message: string) => ctx.addIssue({ code: "custom", message });
+  if ((a.fxGuid === undefined) === (a.fxName === undefined)) fail("Give exactly one of fxGuid or fxName");
+  if (needsParameter && (a.parameter === undefined) === (a.parameterName === undefined)) fail("Give exactly one of parameter or parameterName");
+}
 export const sectionSchema = z.object({startBeat: beat, endBeat: beat,
   tailSeconds: z.number().finite().min(0).max(30).default(0),
 }).strict().refine(s => s.endBeat > s.startBeat, "Section must move forward");
@@ -97,9 +111,8 @@ export const musicSchemas = {
   }).strict(),
   live_revert_fx_edit: z.object({ undoToken: text }).strict(),
   live_set_fx_parameter: z.object({
-    track, fx: z.number().int().nonnegative(), fxGuid: text,
-    parameter: z.number().int().nonnegative(), normalized: z.number().min(0).max(1),
-  }).strict(),
+    track, ...fxRef, normalized: z.number().min(0).max(1),
+  }).strict().superRefine(checkFxRef),
   live_edit_performance: editPerformance,
   live_insert_performance: performance,
   live_add_track: z.object({ name: text }).strict(),
@@ -189,6 +202,19 @@ export const arrangeSchemas = {
   live_split_item: z.object({ ...itemRef, beat }).strict(),
   live_delete_item: z.object(itemRef).strict(),
   live_delete_track: z.object({ track, trackGuid: text }).strict(),
+  live_add_fx: z.object({ track, plugin: z.string().min(1).max(800).regex(/^[^\r\n\x00]+$/) }).strict(),
+  live_remove_fx: z.object({ track, fx: fxRef.fx, fxGuid: fxRef.fxGuid, fxName: fxRef.fxName }).strict()
+    .superRefine((a, ctx) => checkFxRef(a, ctx, false)),
+  live_write_fx_automation: z.object({
+    track, ...fxRef,
+    points: z.array(z.object({
+      beat, normalized: z.number().min(0).max(1), shape: z.number().int().min(0).max(5).optional(),
+    }).strict()).min(1).max(512),
+  }).strict().superRefine((a, ctx) => {
+    checkFxRef(a, ctx);
+    if (a.points.some((point, i) => i > 0 && point.beat <= a.points[i - 1]!.beat))
+      ctx.addIssue({ code: "custom", message: "Points must move forward in time" });
+  }),
 };
 const arrangeDescriptions: Record<keyof typeof arrangeSchemas, string> = {
   live_transport: "Control playback: play, stop, pause, seek (beat) or set_loop (enabled and/or startBeat with endBeat). Read /project/transport for state. Not a project edit: no undo step and not allowed in live_batch. Refused while REAPER is recording; recording is not controlled by this server.",
@@ -201,6 +227,9 @@ const arrangeDescriptions: Record<keyof typeof arrangeSchemas, string> = {
   live_edit_item: "Edit one MIDI or audio item: startBeat, lengthBeats, mute, gainDb, fades, name, or toTrack to move it. Read /tracks/{track}/items for index and GUID. Item indexes follow timeline order, so list the items again after moving or splitting.",
   live_split_item: "Split one item at a project beat inside it. Returns both halves.",
   live_delete_item: "Delete one item, guarded by its GUID.",
+  live_add_fx: "Add an installed effect or instrument to the end of a track's FX chain. plugin is an exact name or identifier from /plugins, for example \"VST: ReaEQ (Cockos)\". Returns its chain index, GUID and parameter count.",
+  live_remove_fx: "Remove one FX from a track's chain, confirmed by fxGuid or fxName.",
+  live_write_fx_automation: "Write automation points for one FX parameter, creating the envelope if there is none. points are {beat, normalized 0-1, shape} in time order (shape 0 linear, 1 square; default linear). Existing points from the first new point to the last are replaced; points outside that range stay. Identify the FX by fxGuid or fxName and the parameter by index or exact parameterName. Requires a 0-1 parameter and a stopped transport.",
   live_delete_track: "Delete a track with its items, FX and sends. Supply trackGuid from /tracks as an identity check. One undo step restores it.",
 };
 const baseCapabilities = Object.entries({...musicSchemas, live_batch: batchSchema}).map(
@@ -219,7 +248,7 @@ const baseCapabilities = Object.entries({...musicSchemas, live_batch: batchSchem
         : name === "live_revert_fx_edit"
         ? "Undo the most recent guarded FX edit using its returned undoToken while the project is still at that revision."
         : name === "live_set_fx_parameter"
-        ? "Set one track FX parameter. Read /tracks/{track}/fx for its GUID and /tracks/{track}/fx/{fx}/parameters for controls. Supply normalized 0-1. Returns native readback."
+        ? "Set one track FX parameter. Read /tracks/{track}/fx for its GUID and /tracks/{track}/fx/{fx}/parameters for controls. Identify the FX by fxGuid, or by fxName when it was added earlier in the same batch, and the parameter by index or exact parameterName. Supply normalized 0-1. Returns native readback."
         : name === "live_edit_performance"
         ? "Edit indexed notes and catalogue keyswitches in an existing MIDI take. Read notes and item metadata first. Beats are clip-relative. Ramps replace matching CC/channel events within inclusive ranges. Rejects looped, pooled or external MIDI; maximum 2048 expanded edits. Re-read indices after every edit."
         : name === "live_insert_performance"

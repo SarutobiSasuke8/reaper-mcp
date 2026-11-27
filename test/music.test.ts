@@ -376,3 +376,20 @@ test("composing resolves instruments before writing, previews without a batch an
   assert.match(JSON.stringify(await call(svc, "reaper_get", { mode: "offline", path: "/personas/nobody-here" })), /Unknown persona/);
   assert.equal(readLibrary("/styles/extra"), undefined);
 });
+
+test("FX references need one identity check and one parameter reference", () => {
+  const set = musicSchemas.live_set_fx_parameter;
+  const base = { track: 0, fx: 0, normalized: 0.5 };
+  set.parse({ ...base, fxGuid: "{g}", parameter: 3 });
+  set.parse({ ...base, fxName: "ReaEQ", parameterName: "Gain-Low Shelf" });
+  for (const bad of [{ ...base, parameter: 3 }, { ...base, fxGuid: "{g}", fxName: "ReaEQ", parameter: 3 }, { ...base, fxGuid: "{g}" }, { ...base, fxGuid: "{g}", parameter: 1, parameterName: "x" }, { ...base, fxName: "Re", parameter: 1 }])
+    assert.throws(() => set.parse(bad));
+  const write = arrangeSchemas.live_write_fx_automation;
+  const points = [{ beat: 0, normalized: 0 }, { beat: 4, normalized: 1, shape: 1 }];
+  write.parse({ track: 0, fx: 0, fxGuid: "{g}", parameter: 1, points });
+  for (const bad of [{ points: [] }, { points: [points[1], points[0]] }, { points: [{ beat: 0, normalized: 2 }] }, { points: [points[0], points[0]] }])
+    assert.throws(() => write.parse({ track: 0, fx: 0, fxGuid: "{g}", parameter: 1, ...bad }));
+  arrangeSchemas.live_remove_fx.parse({ track: 0, fx: 1, fxName: "ReaComp" });
+  assert.throws(() => arrangeSchemas.live_remove_fx.parse({ track: 0, fx: 1 }));
+  assert.throws(() => arrangeSchemas.live_add_fx.parse({ track: 0 }));
+});

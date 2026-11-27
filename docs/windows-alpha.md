@@ -196,6 +196,7 @@ What the build does:
 - **Tempo.** Every track is stretched to one set tempo with its pitch kept. `tempo` is `median`, `first` or a number. A track near half or double the set tempo is matched in that relation.
 - **Decks.** Tracks alternate on two new tracks, Deck A and Deck B, with every bar line on the project grid.
 - **Transitions.** Each pair overlaps for `transitionBars` (4 to 64, in fours) with a fade out and a fade in. A short track shortens its transition and the plan says so.
+- **Bass swap.** By default each deck gets REAPER's bundled ReaEQ. The incoming track plays without its low end (a low shelf near 180 Hz, about 26 dB down) until the middle of the transition, where the two decks swap over one bar. Only one bass line plays at a time. `transition: "crossfade"` leaves the EQ out, and the builder falls back to it with a warning when ReaEQ is missing.
 - **Drops.** With `alignDrops`, the incoming track starts far enough into itself that its first drop lands on the bar where the transition ends.
 - **Loudness.** With `matchLoudness`, each item's gain brings the track to `loudnessLufs` (default -16).
 - **Markers.** A region per track and a marker at the start of each transition, named with the key move.
@@ -209,7 +210,7 @@ Limits to know:
 - The set has one steady tempo. The project must have no tempo changes after the set's start.
 - The grid assumes a steady tempo and 4/4 inside each track. Live recordings and tracks with tempo changes will drift.
 - Key detection is an estimate and can land a fifth away, which on the Camelot wheel is the neighbouring code. Trust `keyConfidence` and your ears.
-- Transitions are level crossfades. There is no EQ or filter work yet, so two full bass lines play together during the overlap.
+- The bass swap is the only EQ move. There are no filter sweeps, echo outs or loops yet.
 - After building, run `live_auto_mix` with `balance` false to set the final loudness.
 
 ## Arrange a live session
@@ -243,6 +244,28 @@ Points to know:
 - An audio item cannot be made longer than its source unless it is looped.
 - `live_insert_audio` takes a workspace-relative wav, flac, mp3, ogg or aiff file.
 - `live_delete_track` removes the track with its items, FX and sends. One undo step in REAPER restores it.
+
+## Effects and automation
+
+| Task | Capability |
+| --- | --- |
+| Add an installed effect to a track | `live_add_fx` with an exact name from `/plugins` |
+| Remove one | `live_remove_fx` |
+| Set a parameter | `live_set_fx_parameter` |
+| Automate a parameter over time | `live_write_fx_automation` |
+
+```json
+{"capability": "live_add_fx", "args": {"track": 0, "plugin": "VST: ReaEQ (Cockos)"}}
+{"capability": "live_write_fx_automation", "args": {"track": 0, "fx": 0, "fxGuid": "{GUID}",
+  "parameterName": "Gain-Low Shelf",
+  "points": [{"beat": 16, "normalized": 0.5}, {"beat": 20, "normalized": 0.1}]}}
+```
+
+- An FX is its chain index plus a check: `fxGuid` from `/tracks/{index}/fx`, or `fxName` (part of its name, at least 3 characters). Use `fxName` inside a `live_batch` for an FX added by an earlier step, whose GUID you cannot know yet.
+- A parameter is its index or its exact `parameterName` from `/tracks/{index}/fx/{fx}/parameters`.
+- Values are normalised 0 to 1. Read the parameter list to see what a value means; for example ReaEQ's shelf gain is 0 dB at 0.5.
+- `live_write_fx_automation` creates the envelope if there is none. Points already between your first and last point are replaced; points outside stay. `shape` is 0 for a straight line to the next point (the default) or 1 for a step.
+- Automation needs a stopped transport and a 0 to 1 parameter.
 
 ## Modes and capabilities
 

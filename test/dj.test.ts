@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { analyzeTrack, analyzeFiles, camelotDistance, djBuild, djBuildCapability, findDrops, planSet, type TrackAnalysis } from "../src/dj.js";
+import { analyzeTrack, analyzeFiles, bassSwap, bassSwapPoints, camelotDistance, djBuild, djBuildCapability, findDrops, planSet, type TrackAnalysis } from "../src/dj.js";
 import { decodeWav } from "../src/audio.js";
 import { LiveBridge } from "../src/live.js";
 import { Workspace } from "../src/workspace.js";
@@ -101,12 +101,12 @@ test("building a set analyses, caches, and sends one batch of tempo, decks, stre
   await assert.rejects(analyzeFiles(workspace, ["notes.txt"]), /reads WAV files/);
   await assert.rejects(analyzeFiles(workspace, ["missing.wav"]), /not found/);
   const batches: any[] = [];
-  const reads: Record<string, unknown> = { "/tracks": [{}, {}, {}], "/project/tempo_map": { markers: [{ beat: 0 }] } };
+  const reads: Record<string, unknown> = { "/tracks": [{}, {}, {}], "/project/tempo_map": { markers: [{ beat: 0 }] }, "/plugins": [{ name: "VST: ReaComp (Cockos)" }, { name: "VST: ReaEQ (Cockos)" }] };
   const bridge = {
     get: async (p: string) => reads[p],
     batch: async (...args: any[]) => { batches.push(args); return { undoLabel: "REAPER MCP: batch #1" }; },
   } as unknown as LiveBridge;
-  const args = djBuildCapability.schema.parse({ files: ["one.wav", "two.wav"], transitionBars: 4, tempo: 123, order: "given" });
+  const args = djBuildCapability.schema.parse({ files: ["one.wav", "two.wav"], transitionBars: 4, tempo: 123, order: "given", transition: "crossfade" });
   const preview: any = await djBuild(bridge, workspace, args, true);
   assert.equal(batches.length, 0);
   assert.deepEqual(preview.decks, [{ name: "Deck A", index: 3 }, { name: "Deck B", index: 4 }]);
@@ -126,4 +126,56 @@ test("building a set analyses, caches, and sends one batch of tempo, decks, stre
   await assert.rejects(djBuild(bridge, workspace, args, false), /one steady tempo/);
   await assert.rejects(djBuild(bridge, workspace, { ...args, files: ["one.wav", "one.wav"] }, true), /may appear once/);
   assert.equal(batches.length, 1);
+});
+
+test("bass swap keeps the low end on one deck and swaps over one bar at the middle of each transition", async () => {
+  const plan = planSet([track("a.wav", 124, "8A"), track("b.wav", 124, "8A"), track("c.wav", 124, "8A")], { order: "given" });
+  assert.equal(plan.transition, "bass_swap");
+  const points = bassSwapPoints(plan);
+  const { full, cut } = bassSwap;
+  // Transitions run bars 80-96 and 160-176, so the swaps centre on bars 88 and 168 (beats 352 and 672).
+  assert.deepEqual(points.A, [
+    { beat: 0, normalized: full }, { beat: 350, normalized: full }, { beat: 354, normalized: cut },
+    { beat: 670, normalized: cut }, { beat: 674, normalized: full },
+  ]);
+  assert.deepEqual(points.B, [
+    { beat: 0, normalized: cut }, { beat: 350, normalized: cut }, { beat: 354, normalized: full },
+    { beat: 670, normalized: full }, { beat: 674, normalized: cut },
+  ]);
+  // At every point in time exactly one deck is full, outside the one-bar swaps.
+  for (const beat of [0, 100, 349, 355, 500, 669, 675, 900]) {
+    const at = (list: { beat: number; normalized: number }[]) => [...list].reverse().find((p) => p.beat <= beat)!.normalized;
+    assert.deepEqual([at(points.A), at(points.B)].sort(), [cut, full]);
+  }
+  const root = await mkdtemp(path.join(os.tmpdir(), "dj-swap-"));
+  await writeFile(path.join(root, "one.wav"), synthTrack({ bpm: 120, tonicMidi: 57, bars: 16, dropBar: 8 }));
+  await writeFile(path.join(root, "two.wav"), synthTrack({ bpm: 126, tonicMidi: 57, bars: 16, dropBar: 8 }));
+  const workspace = await Workspace.open(root);
+  const batches: any[] = [];
+  const reads: Record<string, unknown> = { "/tracks": [], "/project/tempo_map": { markers: [] }, "/plugins": [{ name: "VST: ReaEQ (Cockos)" }] };
+  const bridge = {
+    get: async (p: string) => reads[p],
+    batch: async (...args: any[]) => { batches.push(args); return { undoLabel: "x" }; },
+  } as unknown as LiveBridge;
+  const built: any = await djBuild(bridge, workspace, djBuildCapability.schema.parse({ files: ["one.wav", "two.wav"], transitionBars: 4, order: "given", regions: false }), false);
+  assert.equal(built.transition, "bass_swap");
+  const steps = batches[0][0];
+  assert.deepEqual(steps.map((s: any) => s.action), [
+    "live_set_tempo", "live_add_track", "live_add_track",
+    "live_add_fx", "live_set_fx_parameter", "live_write_fx_automation",
+    "live_add_fx", "live_set_fx_parameter", "live_write_fx_automation",
+    "live_insert_audio", "live_insert_audio", "live_add_marker",
+  ]);
+  assert.deepEqual(steps[3].args, { track: 0, plugin: "VST: ReaEQ (Cockos)" });
+  assert.deepEqual(steps[4].args, { track: 0, fx: 0, fxName: "ReaEQ", parameterName: "Freq-Low Shelf", normalized: bassSwap.frequency });
+  assert.deepEqual(steps[8].args.points[0], { beat: 0, normalized: cut });
+  assert.equal(steps[8].args.parameterName, "Gain-Low Shelf");
+  // Without ReaEQ the set still builds, as a crossfade, and says so.
+  reads["/plugins"] = [];
+  const plain: any = await djBuild(bridge, workspace, djBuildCapability.schema.parse({ files: ["one.wav", "two.wav"], transitionBars: 4, order: "given" }), true);
+  assert.equal(plain.transition, "crossfade");
+  assert.ok(plain.warnings.some((w: string) => /ReaEQ is not installed/.test(w)));
+  // A single track has no transition, so no EQ is added.
+  const solo: any = await djBuild(bridge, workspace, djBuildCapability.schema.parse({ files: ["one.wav"] }), true);
+  assert.equal(solo.transition, "crossfade");
 });

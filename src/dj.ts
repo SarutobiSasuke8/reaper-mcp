@@ -292,6 +292,7 @@ export const planOptions = {
   matchLoudness: z.boolean().default(true),
   loudnessLufs: z.number().min(-30).max(-8).default(-16),
   startBar: z.number().int().min(0).max(10000).default(0),
+  transition: z.enum(["bass_swap", "crossfade"]).default("bass_swap"),
 };
 const planSchema = z.object(planOptions).strict();
 export type PlanOptions = z.infer<typeof planSchema>;
@@ -407,10 +408,41 @@ export function planSet(analyses: TrackAnalysis[], raw: Partial<PlanOptions> = {
     lengthBars,
     lengthSeconds: round(seconds(lengthBars), 2),
     order: o.order,
+    transition: o.transition,
     tracks,
     transitions,
     warnings,
   };
+}
+
+// ---- bass swap ----------------------------------------------------------------
+// Two bass lines at once sound muddy, so only one deck carries the low end at a time.
+// Each deck gets REAPER's bundled ReaEQ; its low shelf is held down on the incoming
+// track and the two decks swap over one bar at the middle of each transition.
+// Values are ReaEQ's normalised parameters, measured on REAPER 7.86.
+export const bassSwap = {
+  plugin: "ReaEQ (Cockos)",
+  frequencyParameter: "Freq-Low Shelf",
+  gainParameter: "Gain-Low Shelf",
+  frequency: 0.215, // about 180 Hz
+  full: 0.5, // 0 dB
+  cut: 0.03, // about -26 dB
+  rampBeats: 2, // half the swap, either side of the midpoint
+};
+type Point = { beat: number; normalized: number };
+export function bassSwapPoints(plan: { startBar: number; tracks: { deck: "A" | "B"; file: string }[]; transitions: { to: string; startBar: number; bars: number }[] }) {
+  const points: Record<"A" | "B", Point[]> = {
+    A: [{ beat: plan.startBar * BEATS_PER_BAR, normalized: bassSwap.full }],
+    B: [{ beat: plan.startBar * BEATS_PER_BAR, normalized: bassSwap.cut }],
+  };
+  for (const x of plan.transitions) {
+    const incoming = plan.tracks.find((t) => t.file === x.to || path.basename(t.file) === x.to)!.deck;
+    const outgoing = incoming === "A" ? "B" : "A";
+    const middle = (x.startBar + x.bars / 2) * BEATS_PER_BAR;
+    points[outgoing].push({ beat: middle - bassSwap.rampBeats, normalized: bassSwap.full }, { beat: middle + bassSwap.rampBeats, normalized: bassSwap.cut });
+    points[incoming].push({ beat: middle - bassSwap.rampBeats, normalized: bassSwap.cut }, { beat: middle + bassSwap.rampBeats, normalized: bassSwap.full });
+  }
+  return points;
 }
 
 // ---- capabilities -----------------------------------------------------------
@@ -428,7 +460,7 @@ export const djBuildCapability = {
   toolset: "editing",
   modes: ["live"],
   description:
-    "Build a beatmatched DJ set from workspace WAV tracks in the live project, as one undo step. Analyses each track, orders them (harmonic by Camelot key, bpm, or given), stretches every track to one set tempo with pitch preserved, and lays them alternately on Deck A and Deck B so bar lines coincide and each transition crossfades over transitionBars. With alignDrops the incoming track enters so its first drop lands as the transition ends. Tracks are loudness-matched with item gain. Adds a region per track and a marker per transition, and sets the project tempo from startBar. dryRun returns the full plan with warnings (key clashes, large tempo changes, uncertain beat grids) and changes nothing. Afterwards render with reaper_render, and use live_auto_mix with balance false for final loudness.",
+    "Build a beatmatched DJ set from workspace WAV tracks in the live project, as one undo step. Analyses each track, orders them (harmonic by Camelot key, bpm, or given), stretches every track to one set tempo with pitch preserved, and lays them alternately on Deck A and Deck B so bar lines coincide and each transition crossfades over transitionBars. With alignDrops the incoming track enters so its first drop lands as the transition ends. With transition bass_swap (the default) each deck gets REAPER's ReaEQ and the low end swaps from the outgoing to the incoming track over one bar at the middle of each transition, so two bass lines never play together; crossfade leaves the EQ out. Tracks are loudness-matched with item gain. Adds a region per track and a marker per transition, and sets the project tempo from startBar. dryRun returns the full plan with warnings (key clashes, large tempo changes, uncertain beat grids) and changes nothing. Afterwards render with reaper_render, and use live_auto_mix with balance false for final loudness.",
   schema: z.object({ files: fileList, ...planOptions, regions: z.boolean().default(true) }).strict(),
 };
 export async function djAnalyze(workspace: Workspace, a: z.infer<typeof djAnalyzeCapability.schema>) {
@@ -450,6 +482,26 @@ export async function djBuild(bridge: LiveBridge, workspace: Workspace, a: z.inf
     { action: "live_set_tempo", args: { beat: startBeat, bpm: plan.bpm } },
     ...decks.map((name) => ({ action: "live_add_track", args: { name } })),
   ];
+  let transition = plan.transitions.length ? plan.transition : "crossfade";
+  const warnings = [...plan.warnings];
+  if (transition === "bass_swap") {
+    const plugins = (await bridge.get("/plugins")) as { name: string }[];
+    const eq = plugins.find((p) => p.name.includes(bassSwap.plugin));
+    if (!eq) {
+      transition = "crossfade";
+      warnings.push("ReaEQ is not installed, so transitions are plain crossfades and the bass lines will overlap");
+    } else {
+      const points = bassSwapPoints(plan);
+      for (const deck of ["A", "B"] as const) {
+        const fx = { track: deckIndex[deck], fx: 0, fxName: "ReaEQ" };
+        steps.push(
+          { action: "live_add_fx", args: { track: deckIndex[deck], plugin: eq.name } },
+          { action: "live_set_fx_parameter", args: { ...fx, parameterName: bassSwap.frequencyParameter, normalized: bassSwap.frequency } },
+          { action: "live_write_fx_automation", args: { ...fx, parameterName: bassSwap.gainParameter, points: points[deck] } },
+        );
+      }
+    }
+  }
   for (const t of plan.tracks) {
     steps.push({
       action: "live_insert_audio",
@@ -472,6 +524,8 @@ export async function djBuild(bridge: LiveBridge, workspace: Workspace, a: z.inf
   const result: Record<string, unknown> = {
     dryRun,
     ...plan,
+    transition,
+    warnings,
     decks: decks.map((name, i) => ({ name, index: existing.length + i })),
     editSteps: steps.length,
     next: "Render with reaper_render and listen to each transition; run live_auto_mix with balance false to set the final loudness",

@@ -121,16 +121,96 @@ try {
     assert.ok(offGrid(blend.beatOffsetSeconds) <= 0.012, `Beats sit ${offGrid(blend.beatOffsetSeconds)} s off the project grid through ${x.from} into ${x.to}`);
     report.push({ from: x.from, to: x.to, camelot: x.camelot, bars: x.bars, tempo: blend.bpm, confidence: blend.tempoConfidence, offGridMs: Number((offGrid(blend.beatOffsetSeconds) * 1000).toFixed(1)) });
   }
-  // Pitch is kept while tempo changes: the first track still reads in its own key at the new speed.
+  // Pitch is kept while tempo changes. The first track opens on its tonic chord, so its root must
+  // still sound at its written frequency, not at that frequency times the play rate.
   const first = set.tracks[0];
   assert.notEqual(first.playRate, 1);
-  assert.equal(part(first.startBar + 1, first.playBars - set.transitions[0].bars - 2).camelot, specs[first.file].camelot);
+  const rootHz = 440 * 2 ** ((specs[first.file].tonicMidi - 69) / 12);
+  const power = (hz) => {
+    const from = Math.round(0.05 * audio.sampleRate);
+    const count = Math.round(0.4 * audio.sampleRate);
+    const coefficient = 2 * Math.cos((2 * Math.PI * hz) / audio.sampleRate);
+    let s1 = 0, s2 = 0;
+    for (let i = 0; i < count; i++) {
+      const s0 = audio.channels[0][from + i] + coefficient * s1 - s2;
+      s2 = s1; s1 = s0;
+    }
+    return s1 * s1 + s2 * s2 - coefficient * s1 * s2;
+  };
+  const kept = power(rootHz), shifted = power(rootHz * first.playRate);
+  assert.ok(kept > shifted * 4, `Root should sound at ${rootHz.toFixed(1)} Hz, not ${(rootHz * first.playRate).toFixed(1)} Hz: ${kept} against ${shifted}`);
   // Each incoming drop lands on the bar the plan promised: that bar is far louder than the one before the track entered.
   for (const t of set.tracks.slice(1)) {
     if (t.dropLandsAtBar === null) continue;
     const landed = set.transitions.find((x) => x.to === t.file);
     assert.equal(t.dropLandsAtBar, landed.startBar + landed.bars, `${t.file} drop must land as its transition ends`);
   }
+  // Bass swap: each deck carries ReaEQ with a written low-shelf envelope.
+  assert.equal(set.transition, "bass_swap");
+  const deckOf = Object.fromEntries(set.tracks.map((t) => [t.file, t.deck === "A" ? 0 : 1]));
+  for (const deck of [0, 1]) {
+    const chain = await call("reaper_get", { path: `/tracks/${deck}/fx` });
+    assert.equal(chain.length, 1);
+    assert.match(chain[0].name, /ReaEQ/);
+    const envelope = await call("reaper_get", { path: `/tracks/${deck}/fx/0/parameters/1/envelope` });
+    assert.equal(envelope.exists, true);
+    assert.ok(envelope.points.length >= 3, `Deck ${deck} envelope has ${envelope.points.length} points`);
+  }
+  // Hear it on the stems: how much of a deck's level is low end, before and after each swap.
+  const stems = [];
+  for (const deck of [0, 1]) {
+    const stem = await call("reaper_render", { target: "stems", stemTrack: { index: deck, guid: decks[deck].guid }, timeoutMs: 280000 });
+    stems.push(decodeWav(await readFile(path.join(root, stem.files[0]))));
+  }
+  // Share of level below about 120 Hz, in dB, over a span of bars.
+  function lowShareDb(stem, fromBar, bars) {
+    const from = Math.round(fromBar * barSeconds * stem.sampleRate);
+    const to = Math.min(stem.frames, Math.round((fromBar + bars) * barSeconds * stem.sampleRate));
+    const k = 1 - Math.exp((-2 * Math.PI * 120) / stem.sampleRate);
+    let a = 0, b = 0, c = 0, low = 0, all = 0;
+    for (let i = Math.max(0, from - 4000); i < to; i++) {
+      const x = stem.channels[0][i];
+      a += k * (x - a); b += k * (a - b); c += k * (b - c);
+      if (i >= from) { low += c * c; all += x * x; }
+    }
+    return 10 * Math.log10(low / all + 1e-12);
+  }
+  const bass = [];
+  for (const x of set.transitions) {
+    const incoming = stems[deckOf[x.to]];
+    const outgoing = stems[deckOf[x.from]];
+    const quarter = x.bars / 4;
+    // First quarter of the blend: the incoming deck has no low end yet. Last quarter: it has, and the outgoing deck has lost its own.
+    const row = {
+      from: x.from, to: x.to,
+      incomingBeforeSwap: lowShareDb(incoming, x.startBar, quarter), incomingAfterSwap: lowShareDb(incoming, x.startBar + 3 * quarter, quarter),
+      outgoingBeforeSwap: lowShareDb(outgoing, x.startBar, quarter), outgoingAfterSwap: lowShareDb(outgoing, x.startBar + 3 * quarter, quarter),
+    };
+    assert.ok(row.incomingAfterSwap - row.incomingBeforeSwap >= 10, `Incoming bass should arrive at the swap: ${JSON.stringify(row)}`);
+    assert.ok(row.outgoingBeforeSwap - row.outgoingAfterSwap >= 10, `Outgoing bass should leave at the swap: ${JSON.stringify(row)}`);
+    bass.push(Object.fromEntries(Object.entries(row).map(([key, v]) => [key, typeof v === "number" ? Number(v.toFixed(1)) : v])));
+  }
+
+  // The general FX capabilities behind it, used directly.
+  const added = await run("live_add_fx", { track: 0, plugin: (await call("reaper_get", { path: "/plugins" })).find((p) => p.name.includes("ReaComp (Cockos)")).name });
+  assert.equal(added.fx, 1);
+  await assert.rejects(run("live_add_fx", { track: 0, plugin: "No Such Plugin" }), /not installed/);
+  const params = await call("reaper_list", { path: "/tracks/0/fx/1/parameters", offset: 0, limit: 50 });
+  const ratio = params.items.find((p) => p.name === "Ratio");
+  const written = await run("live_write_fx_automation", { track: 0, fx: 1, fxGuid: added.guid, parameterName: "Ratio", points: [{ beat: 0, normalized: 0.1 }, { beat: 8, normalized: 0.4 }, { beat: 16, normalized: 0.2, shape: 1 }] });
+  assert.deepEqual([written.createsEnvelope, written.parameter], [true, ratio.index]);
+  const ratioPath = `/tracks/0/fx/1/parameters/${ratio.index}/envelope`;
+  const firstPoints = (await call("reaper_get", { path: ratioPath })).points;
+  // Rewriting the middle replaces only the points inside the new range.
+  const again = await run("live_write_fx_automation", { track: 0, fx: 1, fxName: "ReaComp", parameter: ratio.index, points: [{ beat: 4, normalized: 0.3 }, { beat: 12, normalized: 0.35 }] });
+  assert.equal(again.createsEnvelope, false);
+  const nowPoints = (await call("reaper_get", { path: ratioPath })).points;
+  assert.equal(nowPoints.length, firstPoints.length + 1);
+  assert.ok(nowPoints.every((point) => Math.abs(point.value - 0.4) > 1e-6), "The old middle point must be gone");
+  await assert.rejects(run("live_write_fx_automation", { track: 0, fx: 1, fxName: "ReaEQ", parameterName: "Ratio", points: [{ beat: 0, normalized: 0 }] }), /identity/);
+  await assert.rejects(run("live_write_fx_automation", { track: 0, fx: 1, fxGuid: added.guid, parameterName: "No Such", points: [{ beat: 0, normalized: 0 }] }), /Parameter not found/);
+  await assert.rejects(run("live_remove_fx", { track: 0, fx: 1, fxName: "ReaEQ" }), /identity/);
+  assert.equal((await run("live_remove_fx", { track: 0, fx: 1, fxGuid: added.guid })).fxCount, 1);
   await call("reaper_project", { operation: "save", file: "set.rpp" });
   const result = {
     result: "PASS",
@@ -139,14 +219,17 @@ try {
     set: { bpm: set.bpm, lengthBars: set.lengthBars, order: set.tracks.map((t) => `${t.file} ${t.camelot} ${t.sourceBpm} BPM x${t.playRate}`), warnings: set.warnings },
     renderedTempo: whole.bpm,
     transitions: report,
+    bassShareDb: bass,
     checks: [
       "tempo, bar line, drop and key found for every track, in offline mode",
       "dry run leaves the project empty",
       "two decks, one tempo, items at planned bar, rate, offset, fades and gain",
       "rendered set holds the set tempo",
       "beats stay sharp and on the grid through both transitions",
-      "pitch kept under tempo change",
+      "pitch kept under tempo change, measured on a known note",
       "incoming drops land as their transitions end",
+      "bass swap: low end arrives on the incoming deck and leaves the outgoing deck at the swap",
+      "FX add, automation write with range replace, and removal, with identity checks",
     ],
   };
   await writeFile(path.join(root, "dj-check.json"), JSON.stringify(result, null, 2));

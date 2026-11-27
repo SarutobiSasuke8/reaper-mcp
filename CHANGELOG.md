@@ -27,6 +27,9 @@
 - DJ: `live_build_dj_set` builds a beatmatched set on two decks as one undo step: harmonic, tempo or given order, one set tempo with pitch kept, bar-aligned crossfades, incoming drops landed on the transition end, loudness-matched items, a region per track and a marker per transition.
 - `live_insert_audio` takes `playRate`, `preservePitch`, `offsetSeconds`, `lengthSeconds`, `fadeInSeconds`, `fadeOutSeconds` and `gainDb`. Item views report `playRate` and `preservePitch`.
 - Add `scripts/dj-check.mjs`, a native check that builds and renders a set and measures beat alignment through each transition.
+- DJ: transitions are a bass swap by default. Each deck gets REAPER's bundled ReaEQ, and the low end moves from the outgoing track to the incoming one over one bar at the middle of each transition. `transition: "crossfade"` leaves the EQ out.
+- FX: `live_add_fx` adds any installed effect to a track, `live_remove_fx` removes one, and `live_write_fx_automation` writes automation points for a parameter, creating the envelope when there is none.
+- An FX can be confirmed by `fxName` in place of `fxGuid`, and a parameter chosen by `parameterName` in place of its index. This lets one batch add an FX and then set or automate it.
 
 ## 0.1.0-alpha.6
 

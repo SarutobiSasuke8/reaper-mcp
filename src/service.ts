@@ -32,13 +32,8 @@ export const pathSchema = z
   );
 export { capabilities } from "./editing.js";
 import { capabilities, editSong } from "./editing.js";
-import { selectAuditionCapability, auditionCapability } from "./audition.js";
-import { autoMixCapability } from "./automix.js";
-import { lintCapability } from "./lint.js";
-import { grooveCapability } from "./groove.js";
-import { djAnalyzeCapability, djBuildCapability } from "./dj.js";
-import { musicCapabilities } from "./music.js";
-import { bridgeState } from "./startup.js";
+import { capabilityCatalogue } from "./contract.js";
+import { BRIDGE_PROTOCOL, bridgeState } from "./startup.js";
 
 export class ReaperService {
   song: Song = songSchema.parse({});
@@ -340,10 +335,12 @@ export class ReaperService {
     return renderSong(this.song, this.workspace, { target, timeoutMs });
   }
   async health(): Promise<unknown> {
+    const state = this.live ? await bridgeState(this.live.directory) : "unconfigured";
     return {
       version: packageVersion,
       offline: true,
-      live: this.live ? await this.live.available() : false,
+      live: state === "connected",
+      bridge: { requiredProtocol: BRIDGE_PROTOCOL, state },
       liveCapabilities: [
         "project/track inspection",
         "FX inventory, paged parameter inspection and guarded parameter edits",
@@ -366,7 +363,7 @@ export class ReaperService {
   }
   describe(subject: string): unknown {
     if (subject === "song" || subject === "/project") return songJsonSchema;
-    const cap = [...capabilities, ...musicCapabilities, auditionCapability, selectAuditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability].find(
+    const cap = capabilityCatalogue.find(
       (c) => c.name === subject,
     );
     if (cap)
@@ -374,6 +371,9 @@ export class ReaperService {
         name: cap.name,
         toolset: cap.toolset,
         schema: z.toJSONSchema(cap.schema),
+        modes: cap.modes,
+        maturity: cap.maturity,
+        acceptance: cap.acceptance,
       };
     if (subject.startsWith("/"))
       return {

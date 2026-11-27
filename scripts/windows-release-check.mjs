@@ -36,6 +36,49 @@ try{
  await client.close();await connect();await ready();assert.equal((await call('reaper_get',{path:'/tracks'})).length,1);
  await client.close();client=null;await stopOwned();await delay(5500);
  env.REAPER_MCP_START_PROJECT='acceptance.rpp';await connect();await ready();assert.equal((await call('reaper_get',{path:'/tracks/0/items/0/notes'})).length,4);
- const report={result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,checks:['fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen'],rendered,measurement};
+ const sourceBytes = await readFile(path.join(root, 'acceptance.rpp'));
+ await call('reaper_enable_toolset', {name:'editing'});
+ const fork = {source:'acceptance.rpp', candidate:'revision.rpp'};
+ const preview = await run('fork_saved_project', fork, true);
+ await run('fork_saved_project', {...fork, sourceSha256:preview.sourceSha256});
+ await call('reaper_project', {operation:'open',file:fork.candidate});
+ await call('reaper_get',{path:'/tracks'});
+ const track = await call('reaper_get',{path:'/tracks/0'});
+ const item = await call('reaper_get',{path:'/tracks/0/items/0'});
+ await run('live_edit_performance',{track:track.guid,item:0,takeGuid:item.takeGuid,notes:[{index:2,velocity:40}]});
+ await call('reaper_project',{operation:'save',file:'revision-edited.rpp'});
+ const candidateRender = await call('reaper_render',{target:'mix',timeoutMs:240000});
+ const listen = await run('audition_ab',{a:rendered.files[0],b:candidateRender.files[0],projects:{a:'acceptance.rpp',b:'revision-edited.rpp'},section:{startSeconds:0,endSeconds:1.5}});
+ assert.ok(listen.deltaLu <= 0.5);
+ const selected = await run('select_audition_render',{manifest:listen.manifest,choice:'B'});
+ assert.deepEqual(await readFile(path.join(root,selected.file)),await readFile(path.join(root,candidateRender.files[0])));
+ await call('reaper_project',{operation:'open',file:selected.project.file});
+ const reopenedNotes = await call('reaper_get',{path:'/tracks/0/items/0/notes'});
+ assert.equal(reopenedNotes[2].velocity,40);
+ const reopened = await call('reaper_render',{target:'mix',timeoutMs:240000});
+ const decodeFile = async file => decodeWav(await readFile(path.join(root,file)));
+ const approved = await decodeFile(selected.file);
+ const fresh = await decodeFile(reopened.files[0]);
+ const original = await decodeFile(rendered.files[0]);
+ assert.equal(fresh.frames,approved.frames);
+ assert.equal(fresh.sampleRate,approved.sampleRate);
+ assert.equal(fresh.channels.length,approved.channels.length);
+ const passageFrames = Math.round(approved.sampleRate * 1.5);
+ function relativeError(other) {
+   let energy=0, error=0;
+   for (const [ch, samples] of approved.channels.entries()) {
+     for (let i=0; i<passageFrames; i++) {
+       energy+=samples[i]**2;
+       error+=(samples[i]-other.channels[ch][i])**2;
+     }
+   }
+   return Math.sqrt(error/energy);
+ }
+ const reopenedError=relativeError(fresh);
+ const rejectedError=relativeError(original);
+ assert.ok(reopenedError<0.01, 'Reopened passage diverged: '+reopenedError);
+ assert.ok(rejectedError>0.05, 'Fixture did not distinguish the rejected take: '+rejectedError);
+ assert.deepEqual(await readFile(path.join(root,'acceptance.rpp')),sourceBytes);
+ const report={result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,checks:['fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen','editable candidate fork, matched selection and verified reopened note edit'],rendered,measurement,reopenedError,rejectedError};
  await writeFile(path.join(root,'release-check.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{if(client)await client.close();await stopOwned();}

@@ -27,6 +27,8 @@ Stable scope follows the individual operation's documented limits. Offline conve
 3. Pass the aligned WAVs, a section in seconds and optionally projects.a and projects.b to audition_ab. The project paths are caller-supplied associations. The audition records their file fingerprints.
 4. Use select_audition_render with the manifest and choice. A changed WAV or associated RPP invalidates the selection. The selection receipt identifies the full audio and editable project for reopening. File hashes cover the RPP and WAV themselves; external media, plugin versions and sample libraries have separate lifecycles.
 
+For a deterministic source, independently render the selected project and call `verify_audition_render` with the selection receipt and new full WAV. The check requires aligned full renders and compares samples inside the approved interval. A relative RMS error above 1% fails. If delivery gain changed, supply that known adjustment in dB. This checks reproducibility; variable sample playback can still require a listening decision. Keep the exact approved WAV when delivery must reproduce that take.
+
 ## Release evidence
 
 The Windows workflow installs the packed tarball and exercises discovery over stdio on Node 20 and 22. The native job downloads the Node 22 artifact, starts isolated REAPER, tests restart/reopen and candidate selection, and runs the offline render, batch rollback, lifecycle, editing and routing fixtures. It runs for PRs, main, tags and manual dispatch. Unit, package and native results are separate. The Node 22 job also upgrades an alpha.6 installation in place and reopens its saved MIDI project. A second operator's clean-install run remains a release sign-off step.

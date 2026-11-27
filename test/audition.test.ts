@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { auditionCapability, createAudition, selectAuditionRender } from "../src/audition.js";
+import { auditionCapability, createAudition, selectAuditionRender, verifyAuditionRender } from "../src/audition.js";
 import { Workspace } from "../src/workspace.js";
 // @ts-ignore Vendored JavaScript audio fixture writer.
 import { encodeWav } from "../../vendor/lmms-mcp/audio.mjs";
@@ -56,6 +56,12 @@ test("a timed audition selects the exact full source and detects replacement", a
   const selected = await selectAuditionRender(ws, select, false);
   assert.ok("file" in selected && selected.file);
   assert.deepEqual(await ws.read(selected.file), b);
+  assert.ok("receipt" in selected);
+  const check = (rendered: string, deliveryGainDb=0) =>
+    verifyAuditionRender(ws,{receipt:selected.receipt,rendered,deliveryGainDb});
+  assert.equal((await check("b.wav")).passed,true);
+  assert.equal((await check("a.wav")).passed,false);
+  assert.equal((await check("a.wav",20*Math.log10(2))).passed,true);
   await writeFile(path.join(ws.root,"b.wav"), a);
   await assert.rejects(selectAuditionRender(ws, select, false), /changed after auditioning/);
 });

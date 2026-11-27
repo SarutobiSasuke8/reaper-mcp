@@ -56,29 +56,13 @@ try{
  const reopenedNotes = await call('reaper_get',{path:'/tracks/0/items/0/notes'});
  assert.equal(reopenedNotes[2].velocity,40);
  const reopened = await call('reaper_render',{target:'mix',timeoutMs:240000});
- const decodeFile = async file => decodeWav(await readFile(path.join(root,file)));
- const approved = await decodeFile(selected.file);
- const fresh = await decodeFile(reopened.files[0]);
- const original = await decodeFile(rendered.files[0]);
- assert.equal(fresh.frames,approved.frames);
- assert.equal(fresh.sampleRate,approved.sampleRate);
- assert.equal(fresh.channels.length,approved.channels.length);
- const passageFrames = Math.round(approved.sampleRate * 1.5);
- function relativeError(other) {
-   let energy=0, error=0;
-   for (const [ch, samples] of approved.channels.entries()) {
-     for (let i=0; i<passageFrames; i++) {
-       energy+=samples[i]**2;
-       error+=(samples[i]-other.channels[ch][i])**2;
-     }
-   }
-   return Math.sqrt(error/energy);
- }
- const reopenedError=relativeError(fresh);
- const rejectedError=relativeError(original);
- assert.ok(reopenedError<0.01, 'Reopened passage diverged: '+reopenedError);
- assert.ok(rejectedError>0.05, 'Fixture did not distinguish the rejected take: '+rejectedError);
+ const compare = file => run('verify_audition_render',{receipt:selected.receipt,rendered:file});
+ const verified = await compare(reopened.files[0]);
+ assert.ok(verified.passed,JSON.stringify(verified));
+ const rejected = await compare(rendered.files[0]);
+ assert.equal(rejected.passed,false);
+ assert.ok(rejected.relativeRmsError>0.05);
  assert.deepEqual(await readFile(path.join(root,'acceptance.rpp')),sourceBytes);
- const report={result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,checks:['fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen','editable candidate fork, matched selection and verified reopened note edit'],rendered,measurement,reopenedError,rejectedError};
+ const report={result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,checks:['fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen','editable candidate fork, matched selection and verified reopened note edit'],rendered,measurement,verified,rejected};
  await writeFile(path.join(root,'release-check.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{if(client)await client.close();await stopOwned();}

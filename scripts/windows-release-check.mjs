@@ -70,7 +70,9 @@ try{
  assert.ok(listen.deltaLu <= 0.5);
  const selected = await run('select_audition_render',{manifest:listen.manifest,choice:'B'});
  assert.deepEqual(await readFile(path.join(root,selected.file)),await readFile(path.join(root,candidateRender.files[0])));
- await call('reaper_project',{operation:'open',file:selected.project.file});
+ await client.close();client=null;await stopOwned();await delay(5500);
+ env.REAPER_MCP_START_PROJECT=selected.project.file;
+ await connect();await ready();await call('reaper_enable_toolset',{name:'editing'});
  const reopenedNotes = await call('reaper_get',{path:'/tracks/0/items/0/notes'});
  assert.equal(reopenedNotes[2].velocity,40);
  const reopened = await call('reaper_render',{target:'mix',timeoutMs:240000});
@@ -93,5 +95,7 @@ try{
  }
  assert.deepEqual(await readFile(path.join(root,'acceptance.rpp')),sourceBytes);
  const report={result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,checks:['fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen','editable candidate fork, matched selection and verified reopened note edit'],rendered,measurement,verified,rejected};
+ report.ride={requestedDb:6,measuredDb:gain(.09,.24),afterRideDb:gain(1.05,1.20)};
+ report.checks.push('approved project reopened after managed process restart','scoped gain verified inside and after ride','3/4 to 6/8 tempo map in bars and quarter notes');
  await writeFile(path.join(root,'release-check.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{if(client)await client.close();await stopOwned();}

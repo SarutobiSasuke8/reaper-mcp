@@ -72,6 +72,24 @@ The default target is −18 LUFS. A shared lower target accommodates peaks when 
 - To render one track, call `reaper_render` in live mode with `target: "stems"` and `stemTrack: {"index": 1, "guid": "..."}`. Optional `section` uses the same beat bounds as a mix render. The worker renders the track from a project snapshot with its incoming sends. The returned stereo WAV is the selected track output before downstream buses and master FX.
 - Read `/tracks/1/fx/0/parameters/0/envelope` to inspect existing points. Run `live_edit_fx_envelope_point` with the track, FX slot and GUID, parameter and point indices, the observed `timeSeconds` and a new `normalized` value. Preview with `dryRun`. The returned times identify the adjacent anchors. This operation edits interior points on unscaled 0–1 FX envelopes with linear or square segments, while transport is stopped. It rejects automation items and boundary points.
 
+## Several edits as one undo step
+
+`live_batch` runs 1 to 64 edit capabilities as one transaction. Each step is `{capability, args}` with that capability's normal arguments. REAPER shows one undo entry for the whole batch. If a step fails, the earlier steps are undone and the error names the step.
+
+```json
+{"capability": "live_batch", "args": {"steps": [
+  {"capability": "live_add_track", "args": {"name": "Bass"}},
+  {"capability": "live_insert_midi", "args": {"track": 2, "startBeat": 0, "lengthBeats": 8,
+    "notes": [{"beat": 0, "duration": 1, "pitch": 36}]}}
+]}}
+```
+
+A new track takes the next free index (the current track count), so later steps can address it. With `dryRun`, every step is checked against the project as it is now. A step that depends on an earlier step, as the second step above does, shows `valid: false` in that preview and still runs correctly when applied. `live_revert_fx_edit` and `live_batch` itself cannot be steps.
+
+Anywhere a track index is accepted you can pass the track's GUID from `/tracks` instead, in braces: `/tracks/{GUID}/fx`, or `"track": "{GUID}"` in a capability. The GUID stays correct when tracks are reordered.
+
+One call can carry up to 2048 MIDI events and a request up to 1 MB.
+
 ## Modes and capabilities
 
 | Mode | Supported now |

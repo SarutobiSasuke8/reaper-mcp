@@ -29,6 +29,7 @@
     "scripts/live-check.mjs",
     "scripts/reaper-headless-check.mjs",
     "scripts/lifecycle-check.mjs",
+    "scripts/batch-check.mjs",
     "scripts/music-check.mjs",
     "scripts/performance-check.mjs",
     "scripts/windows-release-check.mjs",

@@ -10,14 +10,15 @@ import {
 import path from "node:path";
 import os from "node:os";
 import { LiveBridge } from "../src/live.js";
+import { bridgeState } from "../src/startup.js";
 import { ReaperService } from "../src/service.js";
 import { Workspace } from "../src/workspace.js";
 
-async function fixture(reply: (parts: string[]) => unknown) {
+async function fixture(reply: (request: any) => unknown) {
   const root = await mkdtemp(path.join(os.tmpdir(), "live-test-"));
   await writeFile(
     path.join(root, "heartbeat.json"),
-    JSON.stringify({ protocol: 2 }),
+    JSON.stringify({ protocol: 3 }),
   );
   let busy = false;
   const timer = setInterval(async () => {
@@ -29,14 +30,11 @@ async function fixture(reply: (parts: string[]) => unknown) {
       const file = path.join(root, name);
       const raw = await readFile(file, "utf8");
       if (!raw) return;
-      const parts = raw
-        .trimEnd()
-        .split("\n")
-        .map((s) => Buffer.from(s, "hex").toString());
+      const request = JSON.parse(raw);
       await unlink(file);
       await writeFile(
-        path.join(root, `${parts[1]}.json`),
-        JSON.stringify({ id: parts[1], ok: true, result: reply(parts) }),
+        path.join(root, `${request.id}.json`),
+        JSON.stringify({ id: request.id, ok: true, result: reply(request) }),
       );
     } catch {
     } finally {
@@ -51,9 +49,9 @@ async function fixture(reply: (parts: string[]) => unknown) {
 }
 test("correlated requests serialize and live writes require a read and validate bounds", async () => {
   const f = await fixture((a) =>
-    a[3] === "ping"
-      ? { protocol: 2 }
-      : a[3] === "get"
+    a.op === "ping"
+      ? { protocol: 3 }
+      : a.op === "get"
         ? { project: "p", revision: 3, value: [] }
         : { project: "p", revision: 4 },
   );
@@ -81,7 +79,7 @@ test("timeout is bounded; unresolved requests are never overwritten or replayed"
   );
 });
 test("auto mode fails closed after connection loss but explicit offline remains usable", async () => {
-  const f = await fixture(() => ({ protocol: 2 }));
+  const f = await fixture(() => ({ protocol: 3 }));
   const svc = new ReaperService(await Workspace.open(f.root), true, f.bridge);
   try {
     assert.equal(await svc.selectMode("auto"), "live");
@@ -92,4 +90,52 @@ test("auto mode fails closed after connection loss but explicit offline remains 
   } finally {
     f.stop();
   }
+});
+
+test("protocol 3 sends one JSON envelope with named arguments, GUID track references and batches", async () => {
+  const seen: any[] = [];
+  const f = await fixture((request) => {
+    seen.push(request);
+    return request.op === "get"
+      ? { project: "p", revision: 7, value: [] }
+      : { project: "p", revision: 8, steps: [] };
+  });
+  const guid = "{6F1C2B3A-0000-4000-8000-00000000ABCD}";
+  try {
+    await assert.rejects(f.bridge.batch([{ action: "live_add_track", args: { name: "x" } }], false), /Read/);
+    await f.bridge.get(`/tracks/${guid}/fx`);
+    assert.equal(seen[0].protocol, 3);
+    assert.equal(seen[0].path, `/tracks/${guid}/fx`);
+    assert.equal(typeof seen[0].deadline, "number");
+    await f.bridge.set(`/tracks/${guid}/mute`, true, false);
+    assert.deepEqual(
+      { op: seen[1].op, action: seen[1].action, args: seen[1].args, project: seen[1].project, revision: seen[1].revision, dryRun: seen[1].dryRun },
+      { op: "call", action: "set_track", args: { track: guid, field: "mute", value: true }, project: "p", revision: 7, dryRun: false },
+    );
+    await f.bridge.set("/tracks/3/pan", -0.5, true);
+    assert.deepEqual(seen[2].args, { track: 3, field: "pan", value: -0.5 });
+    assert.equal(seen[2].revision, 8);
+    await assert.rejects(f.bridge.set("/tracks/{not-a-guid}/mute", true, false), /Live set supports/);
+    const steps = [
+      { action: "live_add_track", args: { name: "Bass" } },
+      { action: "set_track", args: { track: 0, field: "volume_db", value: -6, note: undefined, gone: null } },
+    ];
+    await f.bridge.batch(steps, true);
+    assert.equal(seen[3].op, "batch");
+    assert.equal(seen[3].dryRun, true);
+    assert.deepEqual(seen[3].steps[1].args, { track: 0, field: "volume_db", value: -6 });
+    const big = "x".repeat(1_100_000);
+    await assert.rejects(f.bridge.mutate("live_add_track", { name: big }, false), /exceeds 1 MB/);
+  } finally {
+    f.stop();
+  }
+});
+test("a bridge from an older package is reported as outdated, not as live", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "live-old-"));
+  await writeFile(path.join(root, "heartbeat.json"), JSON.stringify({ protocol: 2 }));
+  assert.equal(await bridgeState(root), "outdated");
+  assert.equal(await new LiveBridge(root).available(), false);
+  const svc = new ReaperService(await Workspace.open(root), true, new LiveBridge(root));
+  await assert.rejects(svc.selectMode("live"), /older REAPER MCP bridge/);
+  assert.equal(await svc.selectMode("offline"), "offline");
 });

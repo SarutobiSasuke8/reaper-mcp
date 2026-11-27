@@ -12,7 +12,27 @@ Offline jobs use a fresh job directory, a generated minimal configuration and a 
 
 Phase 2 starts with atomic file IPC and a bounded `reaper.defer` poll. Stock REAPER must suffice. Deferred callbacks still execute on the DAW thread; socket accept/read, HTTP work and large edits must never block it. A socket bridge would require an explicit supported dependency and latency evidence, not an assumption that Lua includes a socket server. Compare measured file IPC latency before changing transport.
 
-One validated edit call creates one undo step. Validate the entire request before touching the project; `dryRun` reports planned changes. Undo grouping is not automatic rollback on exceptions. Large MIDI changes need bounded chunks and a clear failure/rollback policy. Transport and file rendering have different reversibility from project edits.
+### Protocol 3
+
+The server writes each request as one JSON file named `<uuid>.request`, at most 1 MB:
+
+```json
+{"protocol":3,"id":"<uuid>","deadline":1764240000000,"op":"call",
+ "project":"<identity from the last read>","revision":42,
+ "action":"live_insert_midi","args":{"track":"{GUID}","startBeat":0,"lengthBeats":4,"notes":[]},"dryRun":false}
+```
+
+`op` is `ping`, `get` (with `path`), `call` (one `action` with `args`) or `batch` (`steps`, each an `action` with `args`). The bridge answers in `<uuid>.json`. Writes must carry the project identity and revision returned by the last read, so an edit never lands on a project that changed in between. The bridge's JSON decoder is strict and rejects `null`; the client omits absent fields. A request that cannot be decoded gets an error reply and does not block later requests. Replies to expired requests are not written.
+
+Each capability is one handler registered with `define(name, {undo, batch}, fn)` in `bridge/reaper-mcp.lua`. The handler validates its named arguments against the live project, fills the preview fields and returns the function that performs the edit. `dryRun` stops after validation. To add a live capability, add its Zod schema in `src/music.ts` and one `define` block in the bridge.
+
+A track argument or path segment is a zero-based index or the track GUID in braces. GUIDs survive reordering; indexes do not.
+
+A batch runs its steps in order inside one undo block. If a step fails, the bridge undoes the block when it is the undo head, then reports the failed step. A dry-run batch validates each step against the current project only, so a step that depends on an earlier step reports an error in the preview. `project_*`, `snapshot` and `live_revert_fx_edit` cannot run in a batch because they are not undoable edits.
+
+The bridge and server are released together. A heartbeat with another protocol number means REAPER is still running an older bridge script: the server reports `bridge_upgrade_required` and never falls back to offline.
+
+One validated edit call creates one undo step. Validate the entire request before touching the project; `dryRun` reports planned changes. Undo grouping alone is not rollback on exceptions: single calls restore their own partial work (MIDI buffer, inserted item or FX), and batches undo the whole block. One call carries at most 2048 MIDI events so a single tick stays bounded. Transport and file rendering have different reversibility from project edits.
 
 ## Extensions and optional workstation setup
 

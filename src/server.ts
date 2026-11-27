@@ -323,6 +323,10 @@ export async function call(
                 "/tracks/{index}/fx/{fx}/parameters/{parameter}",
                 "/tracks/{index}/fx/{fx}/parameters/{parameter}/envelope",
               ],
+              trackAddressing:
+                "{index} is zero-based; a track GUID in braces from /tracks works in its place and survives reordering",
+              transactions:
+                "live_batch runs several edit capabilities as one undo step and rolls back on failure",
               set: [
                 "/tracks/{index}/name",
                 "/tracks/{index}/volume_db",

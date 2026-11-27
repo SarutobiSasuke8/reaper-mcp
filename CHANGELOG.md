@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Bridge protocol 3. Requests are one JSON object with named arguments in place of positional hex lines. The request limit rises from 16 KB to 1 MB and MIDI clips and edits from 128 to 2048 events per call.
+- The Lua bridge is a registry with one handler per capability, so a new live capability is one `define` block.
+- Tracks can be addressed by GUID in braces wherever an index is accepted, in object paths (`/tracks/{GUID}/fx`) and in capability arguments.
+- New `live_batch` capability: 1 to 64 edit steps in one native undo step. A failed step undoes the earlier steps.
+- A REAPER session still running the protocol 2 bridge is reported as `bridge_upgrade_required`. Managed startup does not launch a second instance beside it. Restart that REAPER session after upgrading the package.
+- Add `scripts/batch-check.mjs`, a native acceptance check for the new protocol.
+
 ## 0.1.0-alpha.6
 
 - Add the official MCP Registry manifest and npm package identity.

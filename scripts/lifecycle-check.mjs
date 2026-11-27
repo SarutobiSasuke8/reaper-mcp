@@ -88,22 +88,21 @@ try {
   assert.equal((await b.get("/tracks"))[0].name, "b");
   const stale = {
     id: "11111111-1111-1111-1111-111111111111",
-    fields: [
-      "2",
-      "11111111-1111-1111-1111-111111111111",
-      String(Date.now() - 10000),
-      "set",
-      "bad",
-      "0",
-      "0",
-      "pan",
-      "1",
-      "0",
-    ],
+    body: {
+      protocol: 3,
+      id: "11111111-1111-1111-1111-111111111111",
+      deadline: Date.now() - 10000,
+      op: "call",
+      project: "bad",
+      revision: 0,
+      action: "set_track",
+      args: { track: 0, field: "pan", value: 1 },
+      dryRun: false,
+    },
   };
   await writeFile(
     path.join(bridge, stale.id + ".request"),
-    stale.fields.map((s) => Buffer.from(s).toString("hex")).join("\n") + "\n",
+    JSON.stringify(stale.body),
   );
   await delay(200);
   assert.equal(await b.get("/tracks/0/pan"), 0);

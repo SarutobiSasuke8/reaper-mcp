@@ -26,12 +26,14 @@ export const pathSchema = z
   .min(1)
   .max(256)
   .regex(
-    /^\/(?:project|tracks|markers|plugins|instruments)(?:\/(?:[a-zA-Z_]+|0|[1-9][0-9]*))*$/,
+    // A track may also be addressed live by its GUID in braces: /tracks/{GUID}/fx
+    /^\/(?:project|tracks|markers|plugins|instruments)(?:\/(?:[a-zA-Z_]+|0|[1-9][0-9]*|\{[0-9A-Fa-f-]{36}\}))*$/,
   );
 export { capabilities } from "./editing.js";
 import { capabilities, editSong } from "./editing.js";
 import { auditionCapability } from "./audition.js";
 import { musicCapabilities } from "./music.js";
+import { bridgeState } from "./startup.js";
 
 export class ReaperService {
   song: Song = songSchema.parse({});
@@ -55,6 +57,11 @@ export class ReaperService {
       this.hadLive = true;
       return "live";
     }
+    if (this.live && (await bridgeState(this.live.directory)) === "outdated")
+      throw new ToolError(
+        "bridge_upgrade_required",
+        "REAPER is running an older REAPER MCP bridge script. Save your work, close that REAPER session and start it again so it loads the bridge shipped with this server; no offline fallback occurred",
+      );
     if (
       mode === "live" ||
       this.hadLive ||

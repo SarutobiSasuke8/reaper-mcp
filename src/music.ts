@@ -418,7 +418,7 @@ export async function runMusic(
     const { steps } = batchSchema.parse(raw);
     const prepared = [];
     for (const [i, step] of steps.entries()) {
-      if (["live_batch", "live_revert_fx_edit", "live_transport", "live_compose_piece", "live_write_part", "live_auto_mix", "live_build_dj_set", "dj_analyze_tracks"].includes(step.capability))
+      if (["live_batch", "live_revert_fx_edit", "live_transport", "live_compose_piece", "live_write_part", "live_auto_mix", "live_build_dj_set", "dj_analyze_tracks", "live_lint_arrangement", "live_apply_groove"].includes(step.capability))
         throw new ToolError("invalid_input", `Step ${i + 1}: ${step.capability} cannot run in a batch`);
       try {
         prepared.push({ action: step.capability, args: await prepare(step.capability, step.args, workspace) });

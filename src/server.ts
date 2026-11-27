@@ -1,5 +1,7 @@
 import { auditionCapability, createAudition } from "./audition.js";
 import { autoMixCapability, autoMix } from "./automix.js";
+import { lintCapability, lintArrangement } from "./lint.js";
+import { grooveCapability, applyGroove } from "./groove.js";
 import { djAnalyzeCapability, djBuildCapability, djAnalyze, djBuild } from "./dj.js";
 import { isLibraryPath, readLibrary, libraryPaths } from "./compose.js";
 import { sectionSchema } from "./music.js";
@@ -254,7 +256,11 @@ export async function call(
             "toolset_disabled",
             "Enable the editing toolset first",
           );
-        if (args.capability === djBuildCapability.name)
+        if (args.capability === lintCapability.name)
+          value = await lintArrangement(service.live!, lintCapability.schema.parse(args.args));
+        else if (args.capability === grooveCapability.name)
+          value = await applyGroove(service.live!, grooveCapability.schema.parse(args.args), args.dryRun as boolean);
+        else if (args.capability === djBuildCapability.name)
           value = await djBuild(service.live!, service.workspace, djBuildCapability.schema.parse(args.args), args.dryRun as boolean);
         else if (args.capability === autoMixCapability.name)
           value = await autoMix(service.live!, service.workspace, autoMixCapability.schema.parse(args.args), args.dryRun as boolean);
@@ -317,7 +323,7 @@ export async function call(
             {
               name: "editing",
               enabled: service.enabled.has("editing"),
-              capabilities: [...capabilities, ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability].map(
+              capabilities: [...capabilities, ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability].map(
                 (c) => c.name,
               ),
             },
@@ -340,6 +346,7 @@ export async function call(
                 "/markers",
                 "/tracks/{index}/items",
                 "/tracks/{index}/items/{item}",
+                "/tracks/{index}/notes",
                 "/tracks",
                 "/tracks/{index}",
                 "/tracks/{index}/sends",
@@ -366,7 +373,7 @@ export async function call(
         case "reaper_find_capability":
           value = [
             ...capabilities.map((c) => ({ ...c, modes: ["offline"] })),
-            ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability,
+            ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability,
           ]
             .filter((c) =>
               `${c.name} ${c.description}`

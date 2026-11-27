@@ -35,6 +35,7 @@
     "scripts/automix-check.mjs",
     "scripts/dj-check.mjs",
     "scripts/dj-fixture.mjs",
+    "scripts/feel-check.mjs",
     "scripts/music-check.mjs",
     "scripts/performance-check.mjs",
     "scripts/windows-release-check.mjs",

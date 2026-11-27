@@ -30,6 +30,10 @@
 - DJ: transitions are a bass swap by default. Each deck gets REAPER's bundled ReaEQ, and the low end moves from the outgoing track to the incoming one over one bar at the middle of each transition. `transition: "crossfade"` leaves the EQ out.
 - FX: `live_add_fx` adds any installed effect to a track, `live_remove_fx` removes one, and `live_write_fx_automation` writes automation points for a parameter, creating the envelope when there is none.
 - An FX can be confirmed by `fxName` in place of `fxGuid`, and a parameter chosen by `parameterName` in place of its index. This lets one batch add an FX and then set or automate it.
+- Lint: `live_lint_arrangement` reads every unmuted MIDI track and reports harsh clashes, competing melodies, parts masking the lead, notes outside the key, over-busy or empty bars and a lead with no recurring idea, each with a fix. It changes nothing.
+- Groove: `live_apply_groove` swings and humanises an existing MIDI clip as one undo step, at REAPER's full timing resolution.
+- `/tracks/{index}/notes` reads every MIDI note on a track across its items.
+- Add `scripts/feel-check.mjs`, a native check for the lint and the groove.
 - Vendor sidechain pump analysis and mid-beat trigger advice from LMMS source `0dff284533eb23af408bc1b596d348d6410640bb` (#85).
 - Vendor tempo-grid bar-energy curves, peak bar, range and drop detection from green LMMS PR #83, with the same targeted arrangement advice.
 

@@ -23,7 +23,7 @@ test("health checks never leave a request behind when disconnected; stale heartb
   assert.equal(await b.available(), false);
   assert.deepEqual(await readdir(root), []);
   const file = path.join(root, "heartbeat.json");
-  await writeFile(file, JSON.stringify({ protocol: 2 }));
+  await writeFile(file, JSON.stringify({ protocol: 3 }));
   assert.equal(await heartbeat(root), true);
   await utimes(file, 1, 1);
   assert.equal(await heartbeat(root), false);
@@ -47,7 +47,7 @@ test("managed startup does not spawn over an existing process or a live heartbea
   );
   await writeFile(
     path.join(root, "reaper-mcp-bridge", "heartbeat.json"),
-    JSON.stringify({ protocol: 2 }),
+    JSON.stringify({ protocol: 3 }),
   );
   assert.equal((await ensureRunning(w)).state, "connected");
 });

@@ -1,0 +1,91 @@
+{
+  "id": "chicago-acid",
+  "name": "Chicago Acid",
+  "kind": "dj",
+  "tags": [
+    "techno",
+    "straight-techno"
+  ],
+  "brief": "Resonant monosynth bass with accent and slide, raw drum-machine kit, jacking hats.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 118,
+    "max": 128,
+    "default": 124,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "straight-techno",
+    "amount": 0.08
+  },
+  "groove": {
+    "template": "straight-techno"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "four",
+    "subfeel": "straight-techno"
+  },
+  "bass": {
+    "approach": "Resonant monosynth bass with accent and slide, raw drum-machine kit, jacking hats.",
+    "archetype": "octaves"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Short minor stabs above the sliding bass"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Accent and slide movement on the bass."
+    ],
+    "phraseBars": 16,
+    "energyCurve": "techno",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona chicago-acid",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Accent and slide movement on the bass."
+    ]
+  }
+}

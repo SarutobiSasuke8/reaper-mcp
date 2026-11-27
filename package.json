@@ -29,11 +29,18 @@
     "scripts/live-check.mjs",
     "scripts/reaper-headless-check.mjs",
     "scripts/lifecycle-check.mjs",
+    "scripts/batch-check.mjs",
+    "scripts/arrange-check.mjs",
+    "scripts/compose-check.mjs",
+    "scripts/automix-check.mjs",
+    "scripts/dj-check.mjs",
+    "scripts/dj-fixture.mjs",
     "scripts/music-check.mjs",
     "scripts/performance-check.mjs",
     "scripts/windows-release-check.mjs",
     "scripts/system-audio-check.mjs",
-    "scripts/editing-check.mjs"
+    "scripts/editing-check.mjs",
+    "scripts/routing-fixture.mjs"
   ],
   "scripts": {
     "build": "tsc",

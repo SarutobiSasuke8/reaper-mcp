@@ -1,0 +1,91 @@
+{
+  "id": "detroit-berlin-techno",
+  "name": "Detroit Berlin Techno",
+  "kind": "dj",
+  "tags": [
+    "techno",
+    "straight-techno"
+  ],
+  "brief": "Rumble kick, hypnotic loops, long filter and decay automation, optional acid, functional arrangement.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 125,
+    "max": 140,
+    "default": 132,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "straight-techno",
+    "amount": 0
+  },
+  "groove": {
+    "template": "straight-techno"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "four",
+    "subfeel": "straight-techno"
+  },
+  "bass": {
+    "approach": "Rumble kick, hypnotic loops, long filter and decay automation, optional acid, functional arrangement.",
+    "archetype": "roots"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Sparse harmony over the repeating kick and bass"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Hypnotic and dry. Little fill-for-fill's-sake."
+    ],
+    "phraseBars": 32,
+    "energyCurve": "techno",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona detroit-berlin-techno",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Hypnotic and dry. Little fill-for-fill's-sake."
+    ]
+  }
+}

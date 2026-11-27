@@ -1,3 +1,7 @@
+import { auditionCapability, createAudition } from "./audition.js";
+import { autoMixCapability, autoMix } from "./automix.js";
+import { djAnalyzeCapability, djBuildCapability, djAnalyze, djBuild } from "./dj.js";
+import { isLibraryPath, readLibrary, libraryPaths } from "./compose.js";
 import { sectionSchema } from "./music.js";
 // House-template contract annotations and safe-error wrapper adapted for SDK 1.x.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -141,6 +145,7 @@ const definitions = {
       ...mode,
       target: z.enum(["mix", "stems", "regions"]).default("mix"),
       section: sectionSchema.optional(),
+      stemTrack: z.object({index, guid: string.max(200)}).strict().optional().describe("Live stems require the index and GUID of one track"),
       timeoutMs: z
         .number()
         .int()
@@ -211,7 +216,22 @@ export async function call(
       "reaper_describe",
       "reaper_find_capability",
     ]);
-    if (selected === "live" && !common.has(name)) {
+    if ((name === "reaper_get" || name === "reaper_list") && isLibraryPath(args.path)) {
+      const found = readLibrary(args.path);
+      if (found === undefined) throw new ToolError("not_found", "Unknown library path; use /styles, /personas or /personas/{id}");
+      if (name === "reaper_get") value = found;
+      else {
+        if (!Array.isArray(found)) throw new ToolError("invalid_path", "List requires an array path");
+        const offset = args.offset as number;
+        value = { total: found.length, offset, items: found.slice(offset, offset + (args.limit as number)) };
+      }
+    } else if (name === "reaper_run" && args.capability === djAnalyzeCapability.name) {
+      if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
+      value = await djAnalyze(service.workspace, djAnalyzeCapability.schema.parse(args.args));
+    } else if (name === "reaper_run" && args.capability === auditionCapability.name) {
+      if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
+      value = await createAudition(service.workspace, auditionCapability.schema.parse(args.args), args.dryRun as boolean);
+    } else if (selected === "live" && !common.has(name)) {
       if (
         (name === "reaper_get" || name === "reaper_list") &&
         args.path === "/instruments"
@@ -234,11 +254,16 @@ export async function call(
             "toolset_disabled",
             "Enable the editing toolset first",
           );
-        value = await runMusic(
+        if (args.capability === djBuildCapability.name)
+          value = await djBuild(service.live!, service.workspace, djBuildCapability.schema.parse(args.args), args.dryRun as boolean);
+        else if (args.capability === autoMixCapability.name)
+          value = await autoMix(service.live!, service.workspace, autoMixCapability.schema.parse(args.args), args.dryRun as boolean);
+        else value = await runMusic(
           service.live!,
           args.capability as string,
           args.args,
           args.dryRun as boolean,
+          service.workspace,
         );
       } else if (name === "reaper_project") {
         value = await liveProject(
@@ -249,16 +274,21 @@ export async function call(
           args.song,
         );
       } else if (name === "reaper_render") {
-        if (args.target !== "mix")
+        if (args.target === "stems" && !args.stemTrack)
+          throw new ToolError("invalid_input", "Live stem rendering requires stemTrack index and GUID");
+        if (args.target !== "stems" && args.stemTrack)
+          throw new ToolError("invalid_input", "stemTrack requires target stems");
+        if (args.target === "regions")
           throw new ToolError(
             "unsupported_live",
-            "Live rendering currently supports mix only",
+            "Live region rendering requires explicit section bounds with target mix",
           );
         value = await renderLive(
           service.live!,
           service.workspace,
           args.timeoutMs as number,
           args.section as z.infer<typeof sectionSchema> | undefined,
+          args.stemTrack as { index: number; guid: string } | undefined,
         );
       } else if (name === "reaper_analyze") {
         value = await service.analyze(args.file as string, args.referencePath as string | undefined);
@@ -287,7 +317,7 @@ export async function call(
             {
               name: "editing",
               enabled: service.enabled.has("editing"),
-              capabilities: [...capabilities, ...musicCapabilities].map(
+              capabilities: [...capabilities, ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability].map(
                 (c) => c.name,
               ),
             },
@@ -305,17 +335,30 @@ export async function call(
               get: [
                 "/project",
                 "/project/tempo",
+                "/project/tempo_map",
+                "/project/transport",
+                "/markers",
+                "/tracks/{index}/items",
+                "/tracks/{index}/items/{item}",
                 "/tracks",
                 "/tracks/{index}",
+                "/tracks/{index}/sends",
                 "/tracks/{index}/fx",
                 "/tracks/{index}/fx/{fx}/parameters",
                 "/tracks/{index}/fx/{fx}/parameters/{parameter}",
+                "/tracks/{index}/fx/{fx}/parameters/{parameter}/envelope",
               ],
+              library: libraryPaths,
+              trackAddressing:
+                "{index} is zero-based; a track GUID in braces from /tracks works in its place and survives reordering",
+              transactions:
+                "live_batch runs several edit capabilities as one undo step and rolls back on failure",
               set: [
                 "/tracks/{index}/name",
                 "/tracks/{index}/volume_db",
                 "/tracks/{index}/pan",
                 "/tracks/{index}/mute",
+                "/tracks/{index}/solo",
               ],
             },
           };
@@ -323,7 +366,7 @@ export async function call(
         case "reaper_find_capability":
           value = [
             ...capabilities.map((c) => ({ ...c, modes: ["offline"] })),
-            ...musicCapabilities,
+            ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability,
           ]
             .filter((c) =>
               `${c.name} ${c.description}`
@@ -375,6 +418,7 @@ export async function call(
           );
           break;
         case "reaper_render":
+          if (args.stemTrack) throw new ToolError("unsupported_offline", "stemTrack requires live mode");
           if (args.section) throw new ToolError("unsupported_offline", "Section rendering requires live mode");
           value = await service.render(
             args.target as "mix" | "stems" | "regions",

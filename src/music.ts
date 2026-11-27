@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { readFile, realpath, stat, mkdtemp, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ToolError } from "./errors.js";
 import { Workspace } from "./workspace.js";
-import { LiveBridge } from "./live.js";
+import { LiveBridge, TRACK_GUID } from "./live.js";
+import { composeSchemas, composeDescriptions, buildPiece, buildPart, type Step } from "./compose.js";
 import { isolatedIni, locateReaper, runProcess } from "./render.js";
 
 const text = z
@@ -11,7 +13,12 @@ const text = z
   .min(1)
   .max(200)
   .regex(/^[^\r\n\x00]+$/);
-const track = z.number().int().min(0).max(255);
+// A zero-based index, or the track GUID in braces, which survives reordering.
+const track = z.union([
+  z.number().int().min(0).max(255),
+  z.string().regex(new RegExp(`^${TRACK_GUID}$`), "Track GUID must be {8-4-4-4-12} hexadecimal"),
+]);
+const MAX_EVENTS = 2048;
 const beat = z.number().finite().min(0).max(100000);
 const note = z
   .object({
@@ -28,8 +35,8 @@ const controller = z.object({ beat, controller: midiByte, value: midiByte, chann
 const performance = z.object({
   track, name: text.default("Performance"), startBeat: beat,
   lengthBeats: z.number().finite().positive().max(10000),
-  notes: z.array(note).max(128).default([]),
-  controllers: z.array(controller).max(128).default([]),
+  notes: z.array(note).max(MAX_EVENTS).default([]),
+  controllers: z.array(controller).max(MAX_EVENTS).default([]),
   ramps: z.array(z.object({
     startBeat: beat, endBeat: beat, controller: midiByte,
     startValue: midiByte, endValue: midiByte,
@@ -48,7 +55,7 @@ const performance = z.object({
     fail("Performance events must fit within the clip; ramps must move forward");
   if (a.articulations.length && !a.instrument) fail("Named articulations require an instrument catalogue ID");
   const count = a.notes.length + a.controllers.length + a.articulations.length + a.ramps.reduce((n, r) => n + r.steps + 1, 0);
-  if (count < 1 || count > 128) fail("Performance must contain 1-128 expanded events");
+  if (count < 1 || count > MAX_EVENTS) fail(`Performance must contain 1-${MAX_EVENTS} expanded events`);
 });
 const editIndex = z.number().int().min(0).max(9999);
 const editPerformance = z.object({
@@ -57,7 +64,7 @@ const editPerformance = z.object({
     duration: z.number().finite().positive().max(10000).optional(),
     pitch: midiByte.optional(), velocity: z.number().int().min(1).max(127).optional(),
     channel: z.number().int().min(0).max(15).optional(),
-  }).strict()).max(128).default([]),
+  }).strict()).max(MAX_EVENTS).default([]),
   instrument: text.optional(),
   articulations: z.array(z.object({index: editIndex, from: text, to: text}).strict()).max(64).default([]),
   ramps: z.array(z.object({startBeat: beat, endBeat: beat, controller: midiByte,
@@ -70,21 +77,42 @@ const editPerformance = z.object({
   if (a.notes.some(n => Object.keys(n).length === 1)) fail("Empty note edit");
   if (a.articulations.length && !a.instrument) fail("Articulations require an instrument catalogue ID");
   const count = indices.length + a.ramps.reduce((n,r) => n+r.steps+1,0);
-  if (count < 1 || count > 128) fail("Edits must contain 1-128 expanded events");
+  if (count < 1 || count > MAX_EVENTS) fail(`Edits must contain 1-${MAX_EVENTS} expanded events`);
   a.ramps.forEach((r,i) => {
     if (r.endBeat <= r.startBeat) fail("Ramp must move forward");
     if (a.ramps.slice(0,i).some(q => q.channel===r.channel && q.controller===r.controller && q.endBeat>=r.startBeat && r.endBeat>=q.startBeat)) fail("Overlapping controller ranges");
   });
 });
+// An FX is its chain index plus a check: its GUID, or part of its name when the GUID is not known yet
+// (an FX added earlier in the same batch). A parameter is its index or its exact listed name.
+const fxRef = {
+  fx: z.number().int().nonnegative(),
+  fxGuid: text.optional(),
+  fxName: z.string().min(3).max(200).regex(/^[^\r\n\x00]+$/).optional(),
+  parameter: z.number().int().nonnegative().optional(),
+  parameterName: text.optional(),
+};
+function checkFxRef(a: { fxGuid?: string; fxName?: string; parameter?: number; parameterName?: string }, ctx: z.RefinementCtx, needsParameter = true) {
+  const fail = (message: string) => ctx.addIssue({ code: "custom", message });
+  if ((a.fxGuid === undefined) === (a.fxName === undefined)) fail("Give exactly one of fxGuid or fxName");
+  if (needsParameter && (a.parameter === undefined) === (a.parameterName === undefined)) fail("Give exactly one of parameter or parameterName");
+}
 export const sectionSchema = z.object({startBeat: beat, endBeat: beat,
   tailSeconds: z.number().finite().min(0).max(30).default(0),
 }).strict().refine(s => s.endBeat > s.startBeat, "Section must move forward");
 export const musicSchemas = {
+  live_edit_fx_envelope_point: z.object({
+    track, fx: editIndex, fxGuid: text, parameter: editIndex, point: editIndex,
+    timeSeconds: z.number().min(0).max(86400), normalized: z.number().min(0).max(1),
+  }).strict(),
+  live_add_send: z.object({
+    source: track, sourceGuid: text, destination: track, destinationGuid: text,
+    pair: z.enum(["1/2","3/4"]).default("1/2"), gainDb: z.number().min(-150).max(12).default(0),
+  }).strict(),
   live_revert_fx_edit: z.object({ undoToken: text }).strict(),
   live_set_fx_parameter: z.object({
-    track, fx: z.number().int().nonnegative(), fxGuid: text,
-    parameter: z.number().int().nonnegative(), normalized: z.number().min(0).max(1),
-  }).strict(),
+    track, ...fxRef, normalized: z.number().min(0).max(1),
+  }).strict().superRefine(checkFxRef),
   live_edit_performance: editPerformance,
   live_insert_performance: performance,
   live_add_track: z.object({ name: text }).strict(),
@@ -95,7 +123,7 @@ export const musicSchemas = {
       name: text.default("MIDI"),
       startBeat: beat,
       lengthBeats: z.number().finite().positive().max(10000),
-      notes: z.array(note).min(1).max(128),
+      notes: z.array(note).min(1).max(MAX_EVENTS),
     })
     .strict()
     .superRefine((a, ctx) => {
@@ -106,27 +134,151 @@ export const musicSchemas = {
         });
     }),
 };
-export const musicCapabilities = Object.entries(musicSchemas).map(
+const batchSchema = z.object({
+  steps: z.array(z.object({
+    capability: z.string().min(1).max(100),
+    args: z.unknown(),
+  }).strict()).min(1).max(64),
+}).strict();
+const itemRef = { track, item: editIndex, itemGuid: text };
+const markerRef = { id: z.number().int().min(0).max(2147483647), isRegion: z.boolean().default(false) };
+// Arrangement capabilities: transport, markers and regions, tempo map, items and track removal.
+export const arrangeSchemas = {
+  live_transport: z.object({
+    command: z.enum(["play", "stop", "pause", "seek", "set_loop"]),
+    beat: beat.optional(),
+    enabled: z.boolean().optional(),
+    startBeat: beat.optional(),
+    endBeat: beat.optional(),
+  }).strict().superRefine((a, ctx) => {
+    const fail = (message: string) => ctx.addIssue({ code: "custom", message });
+    const loopFields = a.enabled !== undefined || a.startBeat !== undefined || a.endBeat !== undefined;
+    if (a.command === "seek" ? a.beat === undefined : a.beat !== undefined) fail("beat is required for seek and not allowed otherwise");
+    if (a.command !== "set_loop" && loopFields) fail("Loop fields are only allowed with set_loop");
+    if (a.command === "set_loop") {
+      if ((a.startBeat === undefined) !== (a.endBeat === undefined)) fail("Give both startBeat and endBeat");
+      if (a.startBeat !== undefined && a.endBeat !== undefined && a.endBeat <= a.startBeat) fail("Loop must move forward");
+      if (!loopFields) fail("Nothing to change");
+    }
+  }),
+  live_add_marker: z.object({ name: text.optional(), beat, endBeat: beat.optional() }).strict()
+    .refine(a => a.endBeat === undefined || a.endBeat > a.beat, "Region must move forward"),
+  live_edit_marker: z.object({ ...markerRef, name: text.optional(), beat: beat.optional(), endBeat: beat.optional() }).strict()
+    .refine(a => a.name !== undefined || a.beat !== undefined || a.endBeat !== undefined, "Nothing to change")
+    .refine(a => a.isRegion || a.endBeat === undefined, "A marker has no end; use a region"),
+  live_delete_marker: z.object(markerRef).strict(),
+  live_set_tempo: z.object({
+    beat: beat.default(0),
+    bpm: z.number().min(20).max(300),
+    timeSignature: z.object({
+      numerator: z.number().int().min(1).max(64),
+      denominator: z.union([z.literal(1), z.literal(2), z.literal(4), z.literal(8), z.literal(16), z.literal(32), z.literal(64)]),
+    }).strict().optional(),
+    linear: z.boolean().optional(),
+  }).strict(),
+  live_delete_tempo_marker: z.object({ index: editIndex, bpm: z.number().min(1).max(1000) }).strict(),
+  live_insert_audio: z.object({
+    track, file: z.string().min(1).max(4096).regex(/\.(wav|flac|mp3|ogg|aiff?)$/i, "Supported audio: wav, flac, mp3, ogg, aiff"),
+    startBeat: beat, name: text.optional(),
+    playRate: z.number().min(0.25).max(4).optional(),
+    preservePitch: z.boolean().optional(),
+    offsetSeconds: z.number().min(0).max(86400).optional(),
+    lengthSeconds: z.number().positive().max(86400).optional(),
+    fadeInSeconds: z.number().min(0).max(3600).optional(),
+    fadeOutSeconds: z.number().min(0).max(3600).optional(),
+    gainDb: z.number().min(-150).max(24).optional(),
+  }).strict(),
+  live_edit_item: z.object({
+    ...itemRef,
+    startBeat: beat.optional(),
+    lengthBeats: z.number().finite().positive().max(100000).optional(),
+    mute: z.boolean().optional(),
+    gainDb: z.number().min(-150).max(24).optional(),
+    fadeInSeconds: z.number().min(0).max(3600).optional(),
+    fadeOutSeconds: z.number().min(0).max(3600).optional(),
+    name: text.optional(),
+    toTrack: track.optional(),
+  }).strict().refine(a => Object.keys(a).length > 3, "Nothing to change"),
+  live_split_item: z.object({ ...itemRef, beat }).strict(),
+  live_delete_item: z.object(itemRef).strict(),
+  live_delete_track: z.object({ track, trackGuid: text }).strict(),
+  live_add_fx: z.object({ track, plugin: z.string().min(1).max(800).regex(/^[^\r\n\x00]+$/) }).strict(),
+  live_remove_fx: z.object({ track, fx: fxRef.fx, fxGuid: fxRef.fxGuid, fxName: fxRef.fxName }).strict()
+    .superRefine((a, ctx) => checkFxRef(a, ctx, false)),
+  live_write_fx_automation: z.object({
+    track, ...fxRef,
+    points: z.array(z.object({
+      beat, normalized: z.number().min(0).max(1), shape: z.number().int().min(0).max(5).optional(),
+    }).strict()).min(1).max(512),
+  }).strict().superRefine((a, ctx) => {
+    checkFxRef(a, ctx);
+    if (a.points.some((point, i) => i > 0 && point.beat <= a.points[i - 1]!.beat))
+      ctx.addIssue({ code: "custom", message: "Points must move forward in time" });
+  }),
+};
+const arrangeDescriptions: Record<keyof typeof arrangeSchemas, string> = {
+  live_transport: "Control playback: play, stop, pause, seek (beat) or set_loop (enabled and/or startBeat with endBeat). Read /project/transport for state. Not a project edit: no undo step and not allowed in live_batch. Refused while REAPER is recording; recording is not controlled by this server.",
+  live_add_marker: "Add a marker at beat, or a region when endBeat is given. Returns its id. Read /markers to list them.",
+  live_edit_marker: "Rename or move a marker or region found by id and isRegion from /markers. Omitted fields are kept.",
+  live_delete_marker: "Delete a marker or region by id and isRegion from /markers.",
+  live_set_tempo: "Set the tempo from a beat onward (default beat 0), optionally with a time signature. Replaces a tempo marker already at that beat, otherwise adds one. linear ramps to the next marker. Read /project/tempo_map first; item positions follow each item's timebase.",
+  live_delete_tempo_marker: "Delete one tempo marker by its index from /project/tempo_map. Supply its current bpm as an identity check.",
+  live_insert_audio: "Place a workspace audio file (wav, flac, mp3, ogg, aiff) on a track at startBeat as a new item. By default it plays whole at its own speed. Optional: playRate (1.05 is 5% faster) with preservePitch (default true), offsetSeconds to start inside the file, lengthSeconds of project time, fadeInSeconds, fadeOutSeconds and gainDb.",
+  live_edit_item: "Edit one MIDI or audio item: startBeat, lengthBeats, mute, gainDb, fades, name, or toTrack to move it. Read /tracks/{track}/items for index and GUID. Item indexes follow timeline order, so list the items again after moving or splitting.",
+  live_split_item: "Split one item at a project beat inside it. Returns both halves.",
+  live_delete_item: "Delete one item, guarded by its GUID.",
+  live_add_fx: "Add an installed effect or instrument to the end of a track's FX chain. plugin is an exact name or identifier from /plugins, for example \"VST: ReaEQ (Cockos)\". Returns its chain index, GUID and parameter count.",
+  live_remove_fx: "Remove one FX from a track's chain, confirmed by fxGuid or fxName.",
+  live_write_fx_automation: "Write automation points for one FX parameter, creating the envelope if there is none. points are {beat, normalized 0-1, shape} in time order (shape 0 linear, 1 square; default linear). Existing points from the first new point to the last are replaced; points outside that range stay. Identify the FX by fxGuid or fxName and the parameter by index or exact parameterName. Requires a 0-1 parameter and a stopped transport.",
+  live_delete_track: "Delete a track with its items, FX and sends. Supply trackGuid from /tracks as an identity check. One undo step restores it.",
+};
+const baseCapabilities = Object.entries({...musicSchemas, live_batch: batchSchema}).map(
   ([name, schema]) => ({
     name,
     schema,
     toolset: "editing",
     modes: ["live"],
     description:
-      name === "live_revert_fx_edit"
+      name === "live_batch"
+        ? "Run 1-64 live edit capabilities as one transaction and one native undo step. Each step is {capability, args} using that capability's own schema. If any step fails, the earlier steps are undone and the project is left as read. A new track takes the next free index, so later steps can address it. dryRun validates every step against the current project only, so a step that depends on an earlier one reports an error there. Not allowed: live_batch, live_revert_fx_edit, live_transport, live_compose_piece, live_write_part (the last two are already one undo step)."
+        : name === "live_edit_fx_envelope_point"
+        ? "Adjust one existing interior FX automation point. Read the parameter's /envelope first. Preserves its time and adjacent anchors; supports linear/square segments on unscaled 0-1 controls."
+        : name === "live_add_send"
+        ? "Create a post-fader stereo audio send to destination channels 1/2 or sidechain 3/4. Read track GUIDs first. MIDI is disabled."
+        : name === "live_revert_fx_edit"
         ? "Undo the most recent guarded FX edit using its returned undoToken while the project is still at that revision."
         : name === "live_set_fx_parameter"
-        ? "Set one track FX parameter. Read /tracks/{track}/fx for its GUID and /tracks/{track}/fx/{fx}/parameters for controls. Supply normalized 0-1. Returns native readback."
+        ? "Set one track FX parameter. Read /tracks/{track}/fx for its GUID and /tracks/{track}/fx/{fx}/parameters for controls. Identify the FX by fxGuid, or by fxName when it was added earlier in the same batch, and the parameter by index or exact parameterName. Supply normalized 0-1. Returns native readback."
         : name === "live_edit_performance"
-        ? "Edit indexed notes and catalogue keyswitches in an existing MIDI take. Read notes and item metadata first. Beats are clip-relative. Ramps replace matching CC/channel events within inclusive ranges. Rejects looped, pooled or external MIDI; maximum 128 expanded edits. Re-read indices after every edit."
+        ? "Edit indexed notes and catalogue keyswitches in an existing MIDI take. Read notes and item metadata first. Beats are clip-relative. Ramps replace matching CC/channel events within inclusive ranges. Rejects looped, pooled or external MIDI; maximum 2048 expanded edits. Re-read indices after every edit."
         : name === "live_insert_performance"
-        ? "Insert notes, CC events, sampled linear dynamics ramps and catalogue-named keyswitch articulations in one clip; offsets are clip-relative quarter-note beats, maximum 128 expanded events. Place keyswitches before musical notes."
+        ? "Insert notes, CC events, sampled linear dynamics ramps and catalogue-named keyswitch articulations in one clip; offsets are clip-relative quarter-note beats, maximum 2048 expanded events. Place keyswitches before musical notes."
         : name === "live_add_track"
         ? "Append a named native track"
         : name === "live_insert_instrument"
           ? "Insert a configured library instrument and its optional VST3 preset"
-          : "Insert a MIDI clip; project start and clip-relative note offsets are quarter-note beats, channels 0-15; at most 128 notes per clip",
+          : "Insert a MIDI clip; project start and clip-relative note offsets are quarter-note beats, channels 0-15; at most 2048 notes per clip",
   }),
+);
+export const musicCapabilities = [
+  ...baseCapabilities,
+  ...Object.entries(arrangeSchemas).map(([name, schema]) => ({
+    name,
+    schema: schema as z.ZodType,
+    toolset: "editing",
+    modes: ["live"],
+    description: arrangeDescriptions[name as keyof typeof arrangeSchemas],
+  })),
+];
+const liveSchemas: Record<string, z.ZodType> = { ...musicSchemas, ...arrangeSchemas };
+musicCapabilities.push(
+  ...Object.entries(composeSchemas).map(([name, schema]) => ({
+    name,
+    schema: schema as z.ZodType,
+    toolset: "editing",
+    modes: ["live"],
+    description: composeDescriptions[name as keyof typeof composeSchemas],
+  })),
 );
 const entrySchema = z
   .object({
@@ -153,37 +305,35 @@ export async function instruments() {
     throw new ToolError("library_config", "Duplicate instrument IDs");
   return entries;
 }
-export async function runMusic(
-  bridge: LiveBridge,
+// Validates one capability call and resolves catalogue names into the bridge's named arguments.
+async function prepare(
   capability: string,
   raw: unknown,
-  dry: boolean,
-) {
-  const schema = musicSchemas[capability as keyof typeof musicSchemas];
+  workspace?: Workspace,
+): Promise<Record<string, unknown>> {
+  const schema = Object.hasOwn(liveSchemas, capability) ? liveSchemas[capability] : undefined;
   if (!schema)
     throw new ToolError(
       "unsupported_live",
       "Unknown live music capability; describe available capabilities",
     );
   const a: any = schema.parse(raw);
-  let fields: string[];
-  if (capability === "live_add_track") fields = [a.name];
-  else if (capability === "live_revert_fx_edit") fields = [a.undoToken];
-  else if (capability === "live_set_fx_parameter")
-    fields = [String(a.track), String(a.fx), a.fxGuid, String(a.parameter), String(a.normalized)];
-  else if (capability === "live_edit_performance") {
+  if (capability === "live_insert_audio") {
+    if (!workspace) throw new ToolError("invalid_path", "Audio import requires a workspace");
+    // The bridge receives an absolute path that has already been confined to the workspace.
+    return { ...a, file: await workspace.resolve(a.file) };
+  }
+  if (capability === "live_edit_performance") {
     const entry = a.articulations.length ? (await instruments()).find(e => e.id === a.instrument) : undefined;
-    const arts = a.articulations.map((e: any) => {
+    const articulations = a.articulations.map((e: any) => {
       const map = entry?.articulations;
       if (!map || !Object.hasOwn(map,e.from) || !Object.hasOwn(map,e.to))
         throw new ToolError("not_found", "Unknown instrument/articulation; read /instruments");
-      return [e.index,map[e.from],map[e.to]].join(",");
+      return { index: e.index, from: map[e.from], to: map[e.to] };
     });
-    fields = [String(a.track),String(a.item),a.takeGuid,
-      a.notes.map((n: any) => [n.index,n.beat??"",n.duration??"",n.pitch??"",n.velocity??"",n.channel??""].join(",")).join(";"),
-      arts.join(";"),a.ramps.map((r: any) => [r.startBeat,r.endBeat,r.controller,r.startValue,r.endValue,r.steps,r.channel].join(",")).join(";")];
+    return { track: a.track, item: a.item, takeGuid: a.takeGuid, notes: a.notes, articulations, ramps: a.ramps };
   }
-  else if (capability === "live_insert_midi" || capability === "live_insert_performance") {
+  if (capability === "live_insert_midi" || capability === "live_insert_performance") {
     let notes = a.notes;
     let controllers = a.controllers ?? [];
     if (capability === "live_insert_performance") {
@@ -210,27 +360,17 @@ export async function runMusic(
       }
       controllers.sort((x: any, y: any) => x.beat - y.beat);
     }
-    fields = [
-      String(a.track),
-      a.name,
-      String(a.startBeat),
-      String(a.lengthBeats),
-      notes
-        .map((n: any) =>
-          [n.beat, n.duration, n.pitch, n.velocity, n.channel].join(","),
-        )
-        .join(";"),
-    ];
-    if (capability === "live_insert_performance") fields.push(controllers.map((e: any) => [e.beat, e.controller, e.value, e.channel].join(",")).join(";"));
+    const clip = { track: a.track, name: a.name, startBeat: a.startBeat, lengthBeats: a.lengthBeats, notes };
+    return capability === "live_insert_performance" ? { ...clip, controllers } : clip;
   }
-  else {
+  if (capability === "live_insert_instrument") {
     const entry = (await instruments()).find((e) => e.id === a.instrument);
     if (!entry)
       throw new ToolError(
         "not_found",
         "Instrument ID not found; read /instruments",
       );
-    let preset = "";
+    let preset: string | undefined;
     if (entry.preset) {
       if (!path.isAbsolute(entry.preset) || !/\.vstpreset$/i.test(entry.preset))
         throw new ToolError(
@@ -242,9 +382,56 @@ export async function runMusic(
       if (!info.isFile() || info.size > 20_000_000)
         throw new ToolError("library_config", "Invalid preset file");
     }
-    fields = [String(a.track), entry.plugin, preset];
+    return { track: a.track, plugin: entry.plugin, preset };
   }
-  return bridge.mutate(capability, fields, dry);
+  // The remaining schemas already use the bridge's argument names.
+  return a;
+}
+export async function runMusic(
+  bridge: LiveBridge,
+  capability: string,
+  raw: unknown,
+  dry: boolean,
+  workspace?: Workspace,
+) {
+  if (capability === "live_compose_piece" || capability === "live_write_part") {
+    let built: { steps: Step[]; summary: Record<string, unknown> };
+    if (capability === "live_compose_piece") {
+      const args = composeSchemas.live_compose_piece.parse(raw);
+      // New tracks are appended, so their indexes follow from the current track count.
+      const tracks = await bridge.get("/tracks");
+      built = buildPiece(args, Array.isArray(tracks) ? tracks.length : 0);
+    } else {
+      built = buildPart(composeSchemas.live_write_part.parse(raw));
+      await bridge.get("/project");
+    }
+    // Resolving every step first means an unknown instrument fails before anything is written.
+    const prepared = [];
+    for (const step of built.steps)
+      // set_track is the bridge action behind reaper_set; its arguments need no resolving.
+      prepared.push({ action: step.capability, args: step.capability === "set_track" ? step.args : await prepare(step.capability, step.args, workspace) });
+    if (dry) return { dryRun: true, ...built.summary, editSteps: prepared.length };
+    const applied = await bridge.batch(prepared, false);
+    return { dryRun: false, ...built.summary, editSteps: prepared.length, undoLabel: applied.undoLabel, project: applied.project, revision: applied.revision };
+  }
+  if (capability === "live_batch") {
+    const { steps } = batchSchema.parse(raw);
+    const prepared = [];
+    for (const [i, step] of steps.entries()) {
+      if (["live_batch", "live_revert_fx_edit", "live_transport", "live_compose_piece", "live_write_part", "live_auto_mix", "live_build_dj_set", "dj_analyze_tracks"].includes(step.capability))
+        throw new ToolError("invalid_input", `Step ${i + 1}: ${step.capability} cannot run in a batch`);
+      try {
+        prepared.push({ action: step.capability, args: await prepare(step.capability, step.args, workspace) });
+      } catch (error) {
+        if (error instanceof ToolError) throw new ToolError(error.code, `Step ${i + 1} (${step.capability}): ${error.message}`);
+        if (error instanceof z.ZodError)
+          throw new ToolError("invalid_input", `Step ${i + 1} (${step.capability}) does not match its schema; describe the capability`);
+        throw error;
+      }
+    }
+    return bridge.batch(prepared, dry);
+  }
+  return bridge.mutate(capability, await prepare(capability, raw, workspace), dry);
 }
 export async function liveProject(
   bridge: LiveBridge,
@@ -263,7 +450,7 @@ export async function liveProject(
       .object({ tempo: z.number().min(20).max(300).default(120) })
       .strict()
       .parse(song ?? {});
-    return bridge.mutate("project_new", [String(a.tempo)], false);
+    return bridge.mutate("project_new", { tempo: a.tempo }, false);
   }
   if (song !== undefined || !file || !/\.rpp$/i.test(file))
     throw new ToolError(
@@ -273,13 +460,13 @@ export async function liveProject(
   if (operation === "open")
     return bridge.mutate(
       "project_open",
-      [await workspace.resolve(file)],
+      { file: await workspace.resolve(file) },
       false,
     );
   // Exclusive reservation prevents overwriting an existing project. Failed reservations remain reviewable.
   await workspace.writeNew(file, "");
   const output = await workspace.resolve(file);
-  const result = await bridge.mutate("project_save", [output], false);
+  const result = await bridge.mutate("project_save", { file: output }, false);
   if ((await stat(output)).size === 0)
     throw new ToolError(
       "save_failed",
@@ -287,20 +474,32 @@ export async function liveProject(
     );
   return result;
 }
-export async function renderLive(
+export type RenderJob = { folder: string; project: string; snapshot: any; bounds?: z.infer<typeof sectionSchema>; stem: boolean };
+// Stage 1: a render-ready copy of the live project. This goes through the bridge, so callers run it one at a time.
+export async function snapshotRender(
   bridge: LiveBridge,
   workspace: Workspace,
-  timeout: number,
   section?: z.infer<typeof sectionSchema>,
-) {
-  const exe = await locateReaper();
-  if (!exe) throw new ToolError("reaper_not_found", "REAPER is not installed");
+  stemTrack?: { index: number; guid: string },
+): Promise<RenderJob> {
   const folder = await mkdtemp(path.join(workspace.root, "live-render-"));
   const project = path.join(folder, "mix.rpp");
   const bounds = section ? sectionSchema.parse(section) : undefined;
-  const snapshot = await bridge.mutate("snapshot", [project, folder, ...(bounds ? [String(bounds.startBeat),String(bounds.endBeat),String(bounds.tailSeconds)] : [])], false);
+  const snapshot = await bridge.mutate(
+    "snapshot",
+    { file: project, folder, stemTrack: stemTrack?.index, stemGuid: stemTrack?.guid, section: bounds },
+    false,
+  );
   if (bounds && (!Number.isFinite(snapshot.startSeconds) || !Number.isFinite(snapshot.endSeconds)))
     throw new ToolError("bridge_upgrade_required", "Section rendering requires the updated bridge; start a fresh managed session");
+  return { folder, project, snapshot, bounds, stem: !!stemTrack };
+}
+// Stage 2: render one snapshot in its own isolated REAPER process. Jobs are independent and may run side by side.
+export async function runRenderJob(job: RenderJob, workspace: Workspace, timeout: number) {
+  const exe = await locateReaper();
+  if (!exe) throw new ToolError("reaper_not_found", "REAPER is not installed");
+  const { folder, project, snapshot, bounds } = job;
+  const stemTrack = job.stem;
   const cfg = path.join(folder, "reaper.ini");
   const vstPaths = process.env.REAPER_MCP_VST_PATHS;
   if (vstPaths && /[\r\n]/.test(vstPaths))
@@ -312,6 +511,11 @@ export async function renderLive(
       `[REAPER]\n${vstPaths ? `vstpath64=${vstPaths}\n` : ""}`,
     ),
   );
+  let renderArgs = ["-renderproject", project, "-close:nosave:exit"];
+  if (stemTrack) {
+    await writeFile(path.join(folder, "stem-track.txt"), snapshot.stemGuid, { flag: "wx" });
+    renderArgs = [project, fileURLToPath(new URL("../../bridge/render-stem.lua", import.meta.url))];
+  }
   const started = Date.now();
   await runProcess(
     exe,
@@ -320,13 +524,11 @@ export async function renderLive(
       "-nosplash",
       "-cfgfile",
       cfg,
-      "-renderproject",
-      project,
-      "-close:nosave:exit",
+      ...renderArgs,
     ],
     timeout,
   );
-  const output = path.join(folder, "mix.wav");
+  const output = path.join(folder, stemTrack ? "stem.wav" : "mix.wav");
   if ((await stat(output).catch(() => ({ size: 0 }))).size <= 44)
     throw new ToolError(
       "missing_output",
@@ -338,4 +540,14 @@ export async function renderLive(
     section: bounds ?? null,
     snapshot,
   };
+}
+export async function renderLive(
+  bridge: LiveBridge,
+  workspace: Workspace,
+  timeout: number,
+  section?: z.infer<typeof sectionSchema>,
+  stemTrack?: { index: number; guid: string },
+) {
+  if (!(await locateReaper())) throw new ToolError("reaper_not_found", "REAPER is not installed");
+  return runRenderJob(await snapshotRender(bridge, workspace, section, stemTrack), workspace, timeout);
 }

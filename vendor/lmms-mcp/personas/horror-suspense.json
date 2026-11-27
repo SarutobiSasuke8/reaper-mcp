@@ -1,0 +1,222 @@
+{
+  "id": "horror-suspense",
+  "name": "Horror and Suspense",
+  "kind": "film",
+  "tags": [
+    "film",
+    "game",
+    "horror",
+    "suspense",
+    "orchestral",
+    "sparse",
+    "aleatoric",
+    "atmospheric"
+  ],
+  "brief": "A suspense cue that lives in the space between sounds. Slow clusters of semitones in the strings, long silences, and thin, scratchy bowed textures near the bridge are the main material. A heart-beat pulse in a low drum rises and falls in speed, and original risers glide upward without ever resolving. Harmony is phrygian or locrian with stacked seconds. Tempo is slow, 40 to 80, default 60. Rhythm is loose and partly aleatoric: notes enter at irregular gaps and nothing locks to a clear groove for long. Do not use a scare sting; the tension comes from space, dissonance and what is withheld.",
+  "neverDo": [
+    "Quote or imitate a well-known horror stinger, shower-style stab or any existing cue.",
+    "Fill every bar; leave real silence of one to three seconds more than once.",
+    "Resolve to a warm major chord to make the listener feel safe.",
+    "Let a rise reach a loud pay-off every time; withhold it at least once.",
+    "Use an unlicensed sample, a found recording or an unknown-origin drum break."
+  ],
+  "tempo": {
+    "min": 40,
+    "max": 80,
+    "default": 60,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "free-time",
+    "amount": 0
+  },
+  "groove": {
+    "template": "aleatoric-sparse",
+    "humanizeMs": 38,
+    "ghostNoteDensity": 0,
+    "fillInterval": 16
+  },
+  "drums": {
+    "kit": "heartbeat-low-drum",
+    "patterns": "ballad"
+  },
+  "bass": {
+    "approach": "A single very low note held for several bars, sometimes pulsing with the heart-beat drum, and sometimes dropping out completely.",
+    "archetype": "roots"
+  },
+  "harmony": {
+    "keys": [
+      "F# phrygian",
+      "C phrygian",
+      "A phrygian",
+      "D phrygian"
+    ],
+    "scales": [
+      "phrygian",
+      "locrian",
+      "chromatic cluster"
+    ],
+    "modes": [
+      "phrygian",
+      "locrian"
+    ],
+    "progressions": [
+      [
+        "i",
+        "II",
+        "i",
+        "II"
+      ],
+      [
+        "i",
+        "i",
+        "VII",
+        "II"
+      ],
+      [
+        "i",
+        "VI",
+        "II",
+        "i"
+      ]
+    ],
+    "voicings": [
+      "Semitone and tone clusters spread over three string sections",
+      "Open fifths with a minor second added on top",
+      "A single unresolved tritone held under a drone"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "sfz",
+      "preset": "vsco2ce-solo-violin-tremolo",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 34,
+        "pan": 18
+      }
+    },
+    {
+      "role": "harmony",
+      "engine": "sfz",
+      "preset": "vsco2ce-viola-ensemble-tremolo",
+      "fallback": {
+        "voice": "pad",
+        "volume": 44,
+        "pan": -16
+      }
+    },
+    {
+      "role": "pad",
+      "engine": "sfz",
+      "preset": "vsco2ce-violin-ensemble-sustain",
+      "fallback": {
+        "voice": "pad",
+        "volume": 40
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "sfz",
+      "preset": "vsco2ce-contrabass-sustain",
+      "fallback": {
+        "voice": "bass",
+        "volume": 34
+      }
+    },
+    {
+      "role": "kick",
+      "engine": "native",
+      "preset": "heartbeat-low-drum",
+      "fallback": {
+        "voice": "kick",
+        "volume": 40
+      }
+    },
+    {
+      "role": "hat",
+      "engine": "sfz",
+      "preset": "vsco2ce-solo-violin-pizzicato",
+      "fallback": {
+        "voice": "hat",
+        "volume": 24,
+        "pan": 24
+      }
+    }
+  ],
+  "articulations": [
+    {
+      "instrument": "violin-section",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain": 36,
+        "tremolo": 37,
+        "spiccato": 38,
+        "pizzicato": 39
+      }
+    },
+    {
+      "instrument": "viola-section",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain": 36,
+        "tremolo": 37,
+        "spiccato": 38,
+        "pizzicato": 39
+      }
+    },
+    {
+      "instrument": "contrabass",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain-non-vibrato": 84,
+        "sustain-vibrato": 85,
+        "tremolo": 86,
+        "spiccato": 87,
+        "pizzicato": 88
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Open with near silence and one low note.",
+      "Add one texture at a time and remove another so the density never settles.",
+      "Let the heart-beat speed up under a riser, then cut both without a pay-off.",
+      "Keep two or more silences of at least a second inside the cue."
+    ],
+    "phraseBars": 4,
+    "energyCurve": "silence-swell-withhold",
+    "variants": [
+      "stalking-loop",
+      "reveal-free-bed",
+      "ambient-drone-bed"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -20,
+      "truePeakDb": -1.5,
+      "monoBelowHz": 80,
+      "width": 1.1
+    },
+    "fx": [
+      "long-hall-reverb",
+      "gentle-bus-compression",
+      "high-shelf-cut"
+    ],
+    "platformPreset": "game"
+  },
+  "recipe": "scripts/personas/persona-demo.mjs",
+  "testRender": {
+    "seconds": 52,
+    "seed": 1133,
+    "listeningNotes": [
+      "At least two clear silences of one second or more, with a wide gap between loud and quiet sections.",
+      "Dissonance comes from semitone clusters and a tritone, not from a loud stab.",
+      "A heart-beat low drum rises in speed under a riser, then is cut with no pay-off.",
+      "Tremolo strings (standing in for bridge-edge bowing) and plucked ticks (standing in for wood-stick taps) appear as thin, high textures.",
+      "Nothing resembles an existing horror sting."
+    ]
+  }
+}

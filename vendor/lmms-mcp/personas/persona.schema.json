@@ -1,0 +1,456 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "film",
+        "dj"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "brief": {
+      "type": "string",
+      "minLength": 1
+    },
+    "neverDo": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "tempo": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 999
+        },
+        "max": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 999
+        },
+        "default": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 999
+        },
+        "timeSignature": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*\\/(?:1|2|4|8|16|32)$"
+        }
+      },
+      "required": [
+        "min",
+        "max",
+        "default",
+        "timeSignature"
+      ],
+      "additionalProperties": false
+    },
+    "swing": {
+      "type": "object",
+      "properties": {
+        "template": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "template",
+        "amount"
+      ],
+      "additionalProperties": false
+    },
+    "groove": {
+      "type": "object",
+      "properties": {
+        "template": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "humanizeMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "ghostNoteDensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fillInterval": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "additionalProperties": false
+    },
+    "drums": {
+      "type": "object",
+      "properties": {
+        "kit": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "patterns": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "subfeel": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      },
+      "required": [
+        "kit",
+        "patterns"
+      ],
+      "additionalProperties": false
+    },
+    "bass": {
+      "type": "object",
+      "properties": {
+        "approach": {
+          "type": "string",
+          "minLength": 1
+        },
+        "archetype": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      },
+      "required": [
+        "approach",
+        "archetype"
+      ],
+      "additionalProperties": false
+    },
+    "harmony": {
+      "type": "object",
+      "properties": {
+        "keys": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "scales": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "modes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "progressions": {
+          "type": "array",
+          "items": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "voicings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "scales",
+        "modes",
+        "progressions",
+        "voicings"
+      ],
+      "additionalProperties": false
+    },
+    "signatureSounds": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "lead",
+              "harmony",
+              "pad",
+              "bass",
+              "kick",
+              "snare",
+              "hat",
+              "crash"
+            ]
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "surge",
+              "atelier",
+              "theremin",
+              "soundfont",
+              "sfz",
+              "native"
+            ]
+          },
+          "preset": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "fallback": {
+            "type": "object",
+            "properties": {
+              "voice": {
+                "type": "string",
+                "enum": [
+                  "pluck",
+                  "bass",
+                  "pad",
+                  "kick",
+                  "clap",
+                  "hat"
+                ]
+              },
+              "volume": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "pan": {
+                "type": "integer",
+                "minimum": -100,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "voice"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "role",
+          "engine",
+          "preset",
+          "fallback"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "articulations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "instrument": {
+            "type": "string",
+            "minLength": 1
+          },
+          "library": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "keyswitches": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 127
+            }
+          }
+        },
+        "required": [
+          "instrument",
+          "library",
+          "keyswitches"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "arrangement": {
+      "type": "object",
+      "properties": {
+        "habits": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "phraseBars": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "energyCurve": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        }
+      },
+      "required": [
+        "habits",
+        "phraseBars",
+        "energyCurve",
+        "variants"
+      ],
+      "additionalProperties": false
+    },
+    "mix": {
+      "type": "object",
+      "properties": {
+        "targets": {
+          "type": "object",
+          "properties": {
+            "lufs": {
+              "type": "number",
+              "minimum": -36,
+              "maximum": -6
+            },
+            "truePeakDb": {
+              "type": "number",
+              "minimum": -12,
+              "maximum": 0
+            },
+            "monoBelowHz": {
+              "type": "number",
+              "minimum": 0
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "lufs",
+            "truePeakDb"
+          ],
+          "additionalProperties": false
+        },
+        "fx": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        },
+        "platformPreset": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      },
+      "required": [
+        "targets",
+        "fx",
+        "platformPreset"
+      ],
+      "additionalProperties": false
+    },
+    "recipe": {
+      "type": "string",
+      "minLength": 1
+    },
+    "testRender": {
+      "type": "object",
+      "properties": {
+        "seconds": {
+          "type": "number",
+          "minimum": 30,
+          "maximum": 60
+        },
+        "seed": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "listeningNotes": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "seconds",
+        "seed",
+        "listeningNotes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "kind",
+    "tags",
+    "brief",
+    "neverDo",
+    "tempo",
+    "swing",
+    "groove",
+    "drums",
+    "bass",
+    "harmony",
+    "signatureSounds",
+    "arrangement",
+    "mix",
+    "recipe",
+    "testRender"
+  ],
+  "additionalProperties": false
+}

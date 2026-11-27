@@ -24,3 +24,81 @@ jobs:
           name: windows-alpha-node-${{ matrix.node }}
           path: '*.tgz'
           if-no-files-found: error
+
+  native-workflows:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install the official REAPER 7.86 evaluation on the disposable runner
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'reaper786_x64-install.exe'
+          Invoke-WebRequest 'https://www.reaper.fm/files/7.x/reaper786_x64-install.exe' -OutFile $installer -MaximumRetryCount 2
+          # Published x64 checksum in Microsoft's Cockos.REAPER 7.86 WinGet manifest.
+          if ((Get-FileHash $installer).Hash -ne '02AF50CC5C5417B92EFDE1E8FBDB4F37564E8545C3DA409782ECBE7C0E90DF76') { throw 'Unexpected REAPER installer checksum' }
+          $install = Start-Process $installer -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden
+          # WinGet lists 1223 as a successful installer exit. Verify the executable as well.
+          if ($install.ExitCode -notin 0,1223) { throw "Installer exited $($install.ExitCode)" }
+          $binary = Get-Item 'C:/Program Files/REAPER (x64)/reaper.exe'
+          if ($binary.VersionInfo.ProductVersion -notlike '7.86*') { throw 'REAPER 7.86 was not installed' }
+      - run: npm ci
+      - name: Install the packed server and exercise both native workflows
+        shell: pwsh
+        env:
+          REAPER_MCP_RUN_RELEASE_CHECK: 'true'
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'reaper-acceptance'
+          New-Item -ItemType Directory $stage | Out-Null
+          $tarball = npm pack --silent --pack-destination $stage | Select-Object -Last 1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm install --prefix $stage (Join-Path $stage $tarball)
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $check = Join-Path $stage 'node_modules/@sarutobi-sasuke/reaper-mcp/scripts/editing-check.mjs'
+          $env:TEMP = $stage
+          $env:TMP = $stage
+          node $check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node $check --routing
+          exit $LASTEXITCODE
+      - name: Check out the pinned reference server for the optional comparison
+        if: contains(github.event.pull_request.labels.*.name, 'benchmark-sidechain')
+        uses: actions/checkout@v4
+        with:
+          repository: TwelveTake-Studios/reaper-mcp
+          ref: 3718e0158db96ca59aa9b5c982417770368bde0e
+          path: reference-server
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        if: contains(github.event.pull_request.labels.*.name, 'benchmark-sidechain')
+        with:
+          python-version: '3.12'
+      - name: Compare sidechain audio on the same machine and fixture
+        if: contains(github.event.pull_request.labels.*.name, 'benchmark-sidechain')
+        shell: pwsh
+        run: |
+          python -m pip install -r reference-server/requirements.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $report = Get-Item "$env:RUNNER_TEMP/reaper-acceptance/reaper-release-*/routing-check.json"
+          python scripts/benchmark-sidechain.py $report.FullName reference-server
+          exit $LASTEXITCODE
+      - name: Retain measurements and listening copies
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-workflow-evidence
+          path: |
+            ${{ runner.temp }}/reaper-acceptance/reaper-release-*/release-check.json
+            ${{ runner.temp }}/reaper-acceptance/reaper-release-*/routing-check.json
+            ${{ runner.temp }}/reaper-acceptance/reaper-release-*/peer-check.json
+            ${{ runner.temp }}/reaper-acceptance/reaper-release-*/audition-*/A.wav
+            ${{ runner.temp }}/reaper-acceptance/reaper-release-*/audition-*/B.wav
+            ${{ runner.temp }}/reaper-acceptance/reaper-release-*/audition-*/audition.rpp
+          if-no-files-found: warn

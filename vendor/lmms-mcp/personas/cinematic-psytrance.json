@@ -1,0 +1,91 @@
+{
+  "id": "cinematic-psytrance",
+  "name": "Cinematic Psytrance",
+  "kind": "dj",
+  "tags": [
+    "techno",
+    "straight-techno"
+  ],
+  "brief": "Rolling 16th bass, offbeat hypnotic hats, cinematic pads and atmospheres, long evolving phrases, psychedelic FX.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 138,
+    "max": 148,
+    "default": 142,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "straight-techno",
+    "amount": 0
+  },
+  "groove": {
+    "template": "straight-techno"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "four",
+    "subfeel": "straight-techno"
+  },
+  "bass": {
+    "approach": "Rolling 16th bass, offbeat hypnotic hats, cinematic pads and atmospheres, long evolving phrases, psychedelic FX.",
+    "archetype": "pulse"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Wide sustained pads"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Rolls on 16ths for a long time and feels cinematic rather than a short festival drop."
+    ],
+    "phraseBars": 32,
+    "energyCurve": "techno",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona cinematic-psytrance",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Rolls on 16ths for a long time and feels cinematic rather than a short festival drop."
+    ]
+  }
+}

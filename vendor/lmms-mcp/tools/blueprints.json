@@ -1,0 +1,305 @@
+{
+  "defaults": {
+    "lanes": { "bass": [33, 55], "harmony": [48, 64], "counter": [53, 65], "texture": [52, 64], "lead": [67, 88] },
+    "harmonicRhythm": 1,
+    "phraseBars": 2,
+    "masterVolume": 66
+  },
+  "blueprints": [
+    {
+      "id": "overworld",
+      "name": "Overworld adventure",
+      "kind": "loop",
+      "use": "Exploring a bright world map or field. Major key, steady groove, a singable theme that comes back.",
+      "key": "D major",
+      "bpm": 128,
+      "motif": "1:2 3:2 5:4 6:2 5:2 3:4 2:2 3:2 1:4 r:8",
+      "progressions": { "main": "I V vi IV", "contrast": "IV I ii V" },
+      "tracks": [
+        { "name": "Kick", "role": "drums", "drum": "kick", "voice": "sample", "factorySample": "drums/kick01.ogg", "volume": 52, "length": 96 },
+        { "name": "Snare", "role": "drums", "drum": "snare", "voice": "sample", "factorySample": "drums/snare01.ogg", "volume": 36, "length": 96 },
+        { "name": "Hats", "role": "drums", "drum": "hat", "voice": "sample", "factorySample": "drums/hihat_closed01.ogg", "volume": 43, "pan": 18, "length": 24 },
+        { "name": "Crash", "role": "drums", "drum": "crash", "voice": "sample", "factorySample": "drums/crash01.ogg", "volume": 20, "pan": -20, "length": 384 },
+        { "name": "Bass", "role": "bass", "voice": "bass", "volume": 56 },
+        { "name": "Chords", "role": "harmony", "voice": "pad", "volume": 23, "pan": -14 },
+        { "name": "Lead", "role": "lead", "voice": "preset", "preset": "TripleOscillator/PluckArpeggio.xpf", "level": -11, "prefer": ["bright"] },
+        { "name": "Counter", "role": "counter", "voice": "pad", "volume": 26, "pan": 16 },
+        { "name": "Sparkle", "role": "texture", "voice": "preset", "preset": "TripleOscillator/SquarePing.xpf", "level": -16, "pan": 24, "prefer": ["bright"] }
+      ],
+      "drums": {
+        "light": { "kick": "X-------X-------", "hat": "--x---x---x---x-" },
+        "groove": { "kick": "X-----x-X-------", "snare": "----X-------X---", "hat": "x-oxx-oxx-oxx-ox", "crash": "start", "fills": { "snare": "----X---X-X-XxXX" } }
+      },
+      "intro": [
+        { "name": "Intro", "bars": 4, "energy": 1, "drums": "light", "bass": "whole", "harmony": "block", "texture": "arp", "lead": "rest" }
+      ],
+      "body": [
+        { "name": "A", "bars": 8, "energy": 2, "drums": "groove", "bass": "eighths", "harmony": "pulse", "lead": ["state", "repeat", "sequence_up", "half_cadence"] },
+        { "name": "B", "bars": 8, "energy": 3, "chords": "contrast", "drums": "groove", "bass": "syncopated", "harmony": "stabs", "texture": "shimmer", "lead": ["fragment", "rest", "invert", "rest"], "counter": ["rest", "answer", "rest", "answer"] },
+        { "name": "A2", "bars": 8, "energy": 2, "drums": "groove", "bass": "eighths", "harmony": "pulse", "texture": "shimmer", "lead": ["state", "rhythm", "fit", "cadence"] }
+      ]
+    },
+    {
+      "id": "battle",
+      "name": "Battle",
+      "kind": "loop",
+      "use": "A regular fight. Minor key, driving eighths and a short urgent motif with a breather before the loop.",
+      "key": "E minor",
+      "bpm": 160,
+      "masterVolume": 58,
+      "motif": "1:2 1:1 2:1 3:2 5:2 4:2 3:2 2:2 7,:2 1:4 r:12",
+      "progressions": { "main": "i VI III VII", "contrast": "iv VI VII i" },
+      "tracks": [
+        { "name": "Kick", "role": "drums", "drum": "kick", "voice": "sample", "factorySample": "drums/kick02.ogg", "volume": 52, "length": 72 },
+        { "name": "Snare", "role": "drums", "drum": "snare", "voice": "sample", "factorySample": "drums/snare02.ogg", "volume": 34, "length": 96 },
+        { "name": "Hats", "role": "drums", "drum": "hat", "voice": "sample", "factorySample": "drums/hihat_closed02.ogg", "volume": 41, "pan": 18, "length": 24 },
+        { "name": "Crash", "role": "drums", "drum": "crash", "voice": "sample", "factorySample": "drums/crash02.ogg", "volume": 18, "pan": -20, "length": 384 },
+        { "name": "Bass", "role": "bass", "voice": "bass", "volume": 54 },
+        { "name": "Stabs", "role": "harmony", "voice": "pad", "volume": 23, "pan": -12 },
+        { "name": "Lead", "role": "lead", "voice": "preset", "preset": "TripleOscillator/Rough!.xpf", "level": -11, "prefer": ["bright"] },
+        { "name": "Counter", "role": "counter", "voice": "pluck", "volume": 30, "pan": 18 }
+      ],
+      "drums": {
+        "half": { "kick": "X-------X-------", "hat": "x-x-x-x-x-x-x-x-" },
+        "drive": { "kick": "X---X---X---X-x-", "snare": "----X-------X---", "hat": "xoxoxoxoxoxoxoxo", "crash": "start", "fills": { "snare": "----X-------XXXX" } },
+        "build": { "kick": "X---X---X---X---", "snare": "--------x-x-xxXX" }
+      },
+      "intro": [
+        { "name": "Intro", "bars": 2, "energy": 2, "drums": "build", "bass": "octaves", "harmony": "stabs", "lead": "rest" }
+      ],
+      "body": [
+        { "name": "A", "bars": 8, "energy": 3, "drums": "drive", "bass": "octaves", "harmony": "stabs", "lead": ["state", "repeat", "sequence_up", "half_cadence"] },
+        { "name": "B", "bars": 8, "energy": 3, "chords": "contrast", "drums": "drive", "bass": "eighths", "harmony": "pulse", "lead": ["invert", "rest", "fragment", "rest"], "counter": ["rest", "answer", "rest", "answer"] },
+        { "name": "Breather", "bars": 4, "energy": 1, "drums": "half", "bass": "whole", "harmony": "block", "lead": "rest", "counter": ["guide", "guide"] },
+        { "name": "A2", "bars": 8, "energy": 3, "drums": "drive", "bass": "octaves", "harmony": "stabs", "lead": ["state", "rhythm", "diminish", "cadence"] }
+      ]
+    },
+    {
+      "id": "boss",
+      "name": "Boss",
+      "kind": "loop",
+      "use": "A big set-piece fight. Phrygian minor, heavy syncopated drums, a menacing motif that is inverted and stretched.",
+      "key": "C phrygian",
+      "bpm": 150,
+      "motif": "1:3 1:1 2:2 1:2 7,:4 1:4 5:4 4:2 2:2 r:8",
+      "progressions": { "main": "i II i vii", "contrast": "iv II iv vo" },
+      "tracks": [
+        { "name": "Kick", "role": "drums", "drum": "kick", "voice": "sample", "factorySample": "drums/kick_hard01.ogg", "volume": 46, "length": 72 },
+        { "name": "Snare", "role": "drums", "drum": "snare", "voice": "sample", "factorySample": "drums/snare_harsh01.ogg", "volume": 30, "length": 96 },
+        { "name": "Hats", "role": "drums", "drum": "hat", "voice": "sample", "factorySample": "drums/hihat_closed03.ogg", "volume": 38, "pan": 18, "length": 24 },
+        { "name": "Toms", "role": "drums", "drum": "tom", "voice": "sample", "factorySample": "drums/tom_low01.ogg", "volume": 34, "pan": -14, "length": 96 },
+        { "name": "Crash", "role": "drums", "drum": "crash", "voice": "sample", "factorySample": "drums/crash01.ogg", "volume": 18, "pan": -20, "length": 384 },
+        { "name": "Bass", "role": "bass", "voice": "bass", "volume": 56 },
+        { "name": "Pad", "role": "harmony", "voice": "pad", "volume": 23, "pan": -10 },
+        { "name": "Lead", "role": "lead", "voice": "preset", "preset": "TripleOscillator/PMFMFTWbass.xpf", "level": -11 },
+        { "name": "Counter", "role": "counter", "voice": "pad", "volume": 26, "pan": 16 },
+        { "name": "Drone", "role": "texture", "voice": "pad", "volume": 18 }
+      ],
+      "drums": {
+        "toms": { "tom": "X-----x---X-----", "hat": "--x---x---x---x-" },
+        "heavy": { "kick": "X--X--X---X--X--", "snare": "----X-------X---", "hat": "x-xox-xox-xox-xo", "crash": "start", "fills": { "tom": "------------XXXX" } },
+        "half": { "kick": "X-------X-------", "snare": "--------X-------", "tom": "------x-------x-" }
+      },
+      "intro": [
+        { "name": "Intro", "bars": 4, "energy": 1, "drums": "toms", "bass": "pedal", "texture": "drone", "lead": "rest" }
+      ],
+      "body": [
+        { "name": "A", "bars": 8, "energy": 3, "drums": "heavy", "bass": "syncopated", "harmony": "pulse", "texture": "drone", "lead": ["state", "repeat", "sequence_down", "half_cadence"] },
+        { "name": "B", "bars": 8, "energy": 2, "chords": "contrast", "drums": "half", "bass": "half", "harmony": "block", "texture": "drone", "lead": ["rest", "augment", "rest", "fragment"], "counter": ["answer", "rest", "answer", "rest"] },
+        { "name": "A2", "bars": 8, "energy": 3, "drums": "heavy", "bass": "syncopated", "harmony": "pulse", "lead": ["state", "invert", "sequence_down", "cadence"] }
+      ]
+    },
+    {
+      "id": "town",
+      "name": "Calm town",
+      "kind": "loop",
+      "use": "A safe village or shop. Gentle tempo, soft percussion, broken chords and a warm melody with plenty of rests.",
+      "key": "F major",
+      "bpm": 96,
+      "motif": "3:4 2:2 1:2 2:4 5,:4 6,:4 1:4 r:8",
+      "progressions": { "main": "I vi IV V", "contrast": "ii V I vi" },
+      "tracks": [
+        { "name": "Kick", "role": "drums", "drum": "kick", "voice": "sample", "factorySample": "drums/kick_soft01.ogg", "volume": 44, "length": 96 },
+        { "name": "Rim", "role": "drums", "drum": "rim", "voice": "sample", "factorySample": "drums/rim01.ogg", "volume": 30, "pan": -12, "length": 48 },
+        { "name": "Shaker", "role": "drums", "drum": "shaker", "voice": "sample", "factorySample": "drums/shaker01.ogg", "volume": 41, "pan": 20, "length": 24 },
+        { "name": "Bass", "role": "bass", "voice": "bass", "volume": 52 },
+        { "name": "Keys", "role": "harmony", "voice": "pluck", "volume": 23, "pan": -14 },
+        { "name": "Melody", "role": "lead", "voice": "preset", "preset": "TripleOscillator/Bell.xpf", "level": -11, "prefer": ["warm"] },
+        { "name": "Counter", "role": "counter", "voice": "pad", "volume": 22, "pan": 16 }
+      ],
+      "drums": {
+        "soft": { "shaker": "o-x-o-x-o-x-o-x-" },
+        "stroll": { "kick": "X-------x-------", "rim": "----x-------x---", "shaker": "oxxooxxooxxooxxo" }
+      },
+      "intro": [
+        { "name": "Intro", "bars": 4, "energy": 1, "drums": "soft", "bass": "whole", "harmony": "arp", "lead": "rest" }
+      ],
+      "body": [
+        { "name": "A", "bars": 8, "energy": 2, "drums": "stroll", "bass": "half", "harmony": "arp", "lead": ["state", "repeat", "sequence_down", "half_cadence"] },
+        { "name": "B", "bars": 8, "energy": 2, "chords": "contrast", "drums": "stroll", "bass": "half", "harmony": "block", "lead": ["answer", "rest", "retrograde", "rest"], "counter": ["guide", "guide", "guide", "guide"] },
+        { "name": "A2", "bars": 8, "energy": 2, "drums": "stroll", "bass": "half", "harmony": "arp", "lead": ["state", "rhythm", "fit", "cadence"] }
+      ]
+    },
+    {
+      "id": "dungeon",
+      "name": "Dungeon tension",
+      "kind": "loop",
+      "use": "Creeping through danger. Slow phrygian minor, pedal bass, heartbeat drums, a sparse motif that leaves long silences.",
+      "key": "A phrygian",
+      "bpm": 84,
+      "phraseBars": 4,
+      "harmonicRhythm": 2,
+      "motif": "1:8 2:4 1:8 r:12 5,:4 6,:4 5,:8 r:16",
+      "progressions": { "main": "i i II i", "contrast": "iv iv II II" },
+      "tracks": [
+        { "name": "Heartbeat", "role": "drums", "drum": "kick", "voice": "sample", "factorySample": "drums/kick_soft02.ogg", "volume": 46, "length": 96 },
+        { "name": "Rim", "role": "drums", "drum": "rim", "voice": "sample", "factorySample": "drums/sidestick01.ogg", "volume": 30, "pan": 22, "length": 48 },
+        { "name": "Tick", "role": "drums", "drum": "hat", "voice": "sample", "factorySample": "drums/hihat_closed03.ogg", "volume": 30, "pan": -18, "length": 24 },
+        { "name": "Bass", "role": "bass", "voice": "bass", "volume": 54 },
+        { "name": "Pad", "role": "harmony", "voice": "pad", "volume": 19, "pan": -10 },
+        { "name": "Lead", "role": "lead", "voice": "preset", "preset": "Monstro/ScaryBell.xpf", "level": -11, "prefer": ["dark"] },
+        { "name": "Counter", "role": "counter", "voice": "pluck", "volume": 28, "pan": 16 },
+        { "name": "Drone", "role": "texture", "voice": "preset", "preset": "BitInvader/beehive.xpf", "level": -26 }
+      ],
+      "drums": {
+        "heartbeat": { "kick": "X--x------------", "hat": "------o-------o-" },
+        "pulse": { "kick": "X--x------------", "rim": "--------x-----o-", "hat": "--o---x---o---x-" }
+      },
+      "intro": [
+        { "name": "Intro", "bars": 4, "energy": 1, "drums": "heartbeat", "bass": "pedal", "texture": "drone", "lead": "rest" }
+      ],
+      "body": [
+        { "name": "A", "bars": 8, "energy": 1, "drums": "heartbeat", "bass": "pedal", "harmony": "block", "texture": "drone", "lead": ["state", "rest"] },
+        { "name": "B", "bars": 8, "energy": 2, "chords": "contrast", "drums": "pulse", "bass": "whole", "harmony": "block", "texture": "drone", "lead": ["rest", "fragment"], "counter": ["answer", "rest"] },
+        { "name": "A2", "bars": 8, "energy": 2, "drums": "pulse", "bass": "pedal", "harmony": "block", "texture": "drone", "lead": ["state", "cadence"] }
+      ]
+    },
+    {
+      "id": "title",
+      "name": "Title or menu",
+      "kind": "loop",
+      "use": "The title screen or a menu. Broad and welcoming, a slow-building theme that states the game's main motif clearly.",
+      "key": "Eb major",
+      "bpm": 100,
+      "motif": "5,:4 1:4 2:2 3:2 5:4 4:4 3:4 2:4 r:4",
+      "progressions": { "main": "I IV vi V", "contrast": "vi IV I V" },
+      "tracks": [
+        { "name": "Kick", "role": "drums", "drum": "kick", "voice": "sample", "factorySample": "drums/kick_long01.ogg", "volume": 44, "length": 96 },
+        { "name": "Snare", "role": "drums", "drum": "snare", "voice": "sample", "factorySample": "drums/snare_muffled01.ogg", "volume": 30, "length": 96 },
+        { "name": "Ride", "role": "drums", "drum": "ride", "voice": "sample", "factorySample": "drums/ride01.ogg", "volume": 30, "pan": 20, "length": 96 },
+        { "name": "Crash", "role": "drums", "drum": "crash", "voice": "sample", "factorySample": "drums/crash01.ogg", "volume": 16, "pan": -20, "length": 384 },
+        { "name": "Bass", "role": "bass", "voice": "bass", "volume": 52 },
+        { "name": "Organ", "role": "harmony", "voice": "preset", "preset": "TripleOscillator/Harmonium.xpf", "level": -24, "pan": -12 },
+        { "name": "Theme", "role": "lead", "voice": "preset", "preset": "TripleOscillator/HiPad.xpf", "level": -11 },
+        { "name": "Counter", "role": "counter", "voice": "pad", "volume": 24, "pan": 16 },
+        { "name": "Arp", "role": "texture", "voice": "preset", "preset": "TripleOscillator/SquarePing.xpf", "level": -17, "pan": 24 }
+      ],
+      "drums": {
+        "ride": { "ride": "x---o---x---o---" },
+        "march": { "kick": "X-------X-------", "snare": "----o-------o---", "ride": "x-o-x-o-x-o-x-o-", "crash": "start" }
+      },
+      "intro": [
+        { "name": "Intro", "bars": 4, "energy": 1, "drums": "ride", "bass": "whole", "harmony": "block", "texture": "arp", "lead": "rest" }
+      ],
+      "body": [
+        { "name": "A", "bars": 8, "energy": 2, "drums": "march", "bass": "half", "harmony": "block", "texture": "arp", "lead": ["state", "repeat", "sequence_up", "half_cadence"] },
+        { "name": "B", "bars": 8, "energy": 3, "chords": "contrast", "drums": "march", "bass": "quarters", "harmony": "pulse", "texture": "arp", "lead": ["augment", "rest", "fragment", "rest"], "counter": ["rest", "answer", "rest", "answer"] },
+        { "name": "A2", "bars": 8, "energy": 2, "drums": "march", "bass": "half", "harmony": "block", "texture": "arp", "lead": ["state", "rhythm", "fit", "cadence"] }
+      ]
+    },
+    {
+      "id": "puzzle",
+      "name": "Puzzle or chill",
+      "kind": "loop",
+      "use": "Thinking time: puzzles, crafting, a calm hub. Seventh chords, a lazy groove and a short motif with lots of air.",
+      "key": "C major",
+      "bpm": 92,
+      "motif": "3:2 5:2 r:2 6:2 5:4 r:4 3:2 2:2 1:4 r:8",
+      "progressions": { "main": "Imaj7 vi7 ii7 V7", "contrast": "IVmaj7 iii7 ii7 V7" },
+      "tracks": [
+        { "name": "Kick", "role": "drums", "drum": "kick", "voice": "sample", "factorySample": "drums/kick_soft01.ogg", "volume": 44, "length": 96 },
+        { "name": "Rim", "role": "drums", "drum": "rim", "voice": "sample", "factorySample": "drums/snare_rim01.ogg", "volume": 28, "pan": -10, "length": 48 },
+        { "name": "Hats", "role": "drums", "drum": "hat", "voice": "sample", "factorySample": "drums/hihat_closed04.ogg", "volume": 35, "pan": 18, "length": 24 },
+        { "name": "Bass", "role": "bass", "voice": "bass", "volume": 52 },
+        { "name": "Keys", "role": "harmony", "voice": "pad", "volume": 19, "pan": -14 },
+        { "name": "Lead", "role": "lead", "voice": "preset", "preset": "TripleOscillator/Bell.xpf", "level": -11, "prefer": ["warm"] },
+        { "name": "Counter", "role": "counter", "voice": "pluck", "volume": 26, "pan": 16 },
+        { "name": "Shimmer", "role": "texture", "voice": "preset", "preset": "TripleOscillator/SquarePing.xpf", "level": -18, "pan": 24 }
+      ],
+      "drums": {
+        "hats": { "hat": "o-x-o-x-o-x-o-x-" },
+        "lazy": { "kick": "X-----x---x-----", "rim": "----x-------x---", "hat": "o-x-o-x-o-x-o-x-" }
+      },
+      "intro": [
+        { "name": "Intro", "bars": 4, "energy": 1, "drums": "hats", "bass": "whole", "harmony": "block", "lead": "rest" }
+      ],
+      "body": [
+        { "name": "A", "bars": 8, "energy": 2, "drums": "lazy", "bass": "quarters", "harmony": "block", "texture": "shimmer", "lead": ["state", "repeat", "sequence_down", "half_cadence"] },
+        { "name": "B", "bars": 8, "energy": 2, "chords": "contrast", "drums": "lazy", "bass": "quarters", "harmony": "stabs", "lead": ["retrograde", "rest", "invert", "rest"], "counter": ["rest", "answer", "rest", "answer"] },
+        { "name": "A2", "bars": 8, "energy": 2, "drums": "lazy", "bass": "quarters", "harmony": "block", "texture": "shimmer", "lead": ["state", "rhythm", "fit", "cadence"] }
+      ]
+    },
+    {
+      "id": "chiptune",
+      "name": "Chiptune",
+      "kind": "loop",
+      "use": "Retro 8-bit action or platforming. Fast arpeggios, octave bass, a busy but single-minded square-wave lead.",
+      "key": "C major",
+      "bpm": 140,
+      "lanes": { "lead": [72, 93], "harmony": [55, 69], "counter": [57, 70], "texture": [57, 70] },
+      "motif": "1:2 3:2 5:2 1':2 7:2 5:2 6:4 5:2 3:2 4:2 2:2 1:4 r:4",
+      "progressions": { "main": "I vi IV V", "contrast": "IV V iii vi" },
+      "tracks": [
+        { "name": "Kick", "role": "drums", "drum": "kick", "voice": "sample", "factorySample": "drums/kick03.ogg", "volume": 48, "length": 48 },
+        { "name": "Snare", "role": "drums", "drum": "snare", "voice": "sample", "factorySample": "drums/snare_short01.ogg", "volume": 30, "length": 48 },
+        { "name": "Hats", "role": "drums", "drum": "hat", "voice": "sample", "factorySample": "drums/hihat_closed05.ogg", "volume": 38, "pan": 16, "length": 12 },
+        { "name": "Bass", "role": "bass", "voice": "bass", "volume": 50 },
+        { "name": "Arp", "role": "texture", "voice": "pluck", "volume": 16, "pan": -18 },
+        { "name": "Square", "role": "lead", "voice": "preset", "preset": "SID/Lead.xpf", "level": -11 },
+        { "name": "Echo", "role": "counter", "voice": "preset", "preset": "Nescaline/Detune_lead.xpf", "level": -21, "pan": 18 },
+        { "name": "Chords", "role": "harmony", "voice": "pluck", "volume": 16, "pan": 12 }
+      ],
+      "drums": {
+        "intro": { "kick": "X---X---X---X---", "hat": "x-x-x-x-x-x-x-x-" },
+        "run": { "kick": "X---x-X-X---x---", "snare": "----X-------X---", "hat": "xxx-xxx-xxx-xxx-", "fills": { "snare": "----X---X-XXXXXX" } }
+      },
+      "intro": [
+        { "name": "Intro", "bars": 2, "energy": 2, "drums": "intro", "bass": "octaves", "texture": "arp", "lead": "rest" }
+      ],
+      "body": [
+        { "name": "A", "bars": 8, "energy": 3, "drums": "run", "bass": "octaves", "harmony": "hits", "texture": "arp", "lead": ["state", "repeat", "sequence_up", "half_cadence"] },
+        { "name": "B", "bars": 8, "energy": 3, "chords": "contrast", "drums": "run", "bass": "eighths", "texture": "arp", "lead": ["diminish", "rest", "fragment", "rest"], "counter": ["rest", "answer", "rest", "answer"] },
+        { "name": "A2", "bars": 8, "energy": 3, "drums": "run", "bass": "octaves", "harmony": "hits", "texture": "arp", "lead": ["state", "rhythm", "invert", "cadence"] }
+      ]
+    },
+    {
+      "id": "victory",
+      "name": "Victory fanfare",
+      "kind": "stinger",
+      "use": "A short win stinger after a battle or a level. Rising triad motif, then a cadence that rings out on the tonic. Play once, do not loop.",
+      "key": "Bb major",
+      "bpm": 132,
+      "phraseBars": 1,
+      "lanes": { "lead": [67, 96] },
+      "motif": "5,:2 1:2 3:2 5:6 3:2 5:2",
+      "progressions": { "main": "I IV", "close": "V I" },
+      "tracks": [
+        { "name": "Kick", "role": "drums", "drum": "kick", "voice": "sample", "factorySample": "drums/kick01.ogg", "volume": 48, "length": 96 },
+        { "name": "Snare", "role": "drums", "drum": "snare", "voice": "sample", "factorySample": "drums/snare01.ogg", "volume": 30, "length": 48 },
+        { "name": "Crash", "role": "drums", "drum": "crash", "voice": "sample", "factorySample": "drums/crash01.ogg", "volume": 22, "pan": -16, "length": 384 },
+        { "name": "Bass", "role": "bass", "voice": "bass", "volume": 54 },
+        { "name": "Brass", "role": "harmony", "voice": "pad", "volume": 25, "pan": -10 },
+        { "name": "Fanfare", "role": "lead", "voice": "preset", "preset": "TripleOscillator/PluckArpeggio.xpf", "level": -11, "prefer": ["bright"] }
+      ],
+      "drums": {
+        "fanfare": { "kick": "X-------X-------", "snare": "--------x-x-xxXX", "crash": "start" },
+        "close": { "kick": "X---------------", "crash": "start" }
+      },
+      "intro": [],
+      "body": [
+        { "name": "Fanfare", "bars": 2, "energy": 3, "drums": "fanfare", "bass": "half", "harmony": "hits", "lead": ["state", "fit"] },
+        { "name": "Cadence", "bars": 2, "energy": 3, "chords": "close", "drums": "close", "bass": "whole", "harmony": "block", "lead": ["half_cadence", "hold"] }
+      ]
+    }
+  ]
+}

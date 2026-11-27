@@ -75,7 +75,8 @@ test("optional installed REAPER renders one second of audible WAV", async (t) =>
   });
   const result = await renderSong(song, workspace, {
     target: "mix",
-    timeoutMs: 30000,
+    // An isolated first launch can spend over 30 seconds scanning installed plugins.
+    timeoutMs: 120000,
   });
   const wav = decodeWav(await workspace.read(result.files[0]!));
   assert.ok(Math.abs(wav.frames / wav.sampleRate - 1) < 0.05);

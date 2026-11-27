@@ -22,14 +22,22 @@ export function alive(pid: number): boolean {
     return (e as NodeJS.ErrnoException).code === "EPERM";
   }
 }
-export async function heartbeat(directory: string): Promise<boolean> {
+export const BRIDGE_PROTOCOL = 3;
+// "outdated" means a live bridge from an older package is running in REAPER.
+export async function bridgeState(
+  directory: string,
+): Promise<"connected" | "outdated" | "absent"> {
   try {
     const p = path.join(directory, "heartbeat.json");
     const h = JSON.parse(await readFile(p, "utf8"));
-    return h.protocol === 2 && Date.now() - (await stat(p)).mtimeMs < 5000;
+    if (Date.now() - (await stat(p)).mtimeMs >= 5000) return "absent";
+    return h.protocol === BRIDGE_PROTOCOL ? "connected" : "outdated";
   } catch {
-    return false;
+    return "absent";
   }
+}
+export async function heartbeat(directory: string): Promise<boolean> {
+  return (await bridgeState(directory)) === "connected";
 }
 // Reuse an owned process; never kill/restart a possibly unsaved session automatically.
 export async function ensureRunning(
@@ -42,7 +50,10 @@ export async function ensureRunning(
     path.resolve(process.env.REAPER_MCP_BRIDGE_DIR) !== bridge
   )
     throw Error("Autostart requires the workspace's managed bridge directory");
-  if (await heartbeat(bridge)) return { state: "connected" };
+  const state = await bridgeState(bridge);
+  if (state === "connected") return { state };
+  // Never launch a second instance beside a session that still runs the previous bridge.
+  if (state === "outdated") return { state: "bridge_outdated" };
   const profile = await workspace.resolve("reaper-mcp-profile", true);
   await mkdir(profile, { recursive: true });
   const lockfile = path.join(profile, "startup.lock"),

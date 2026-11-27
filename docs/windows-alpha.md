@@ -50,6 +50,223 @@ Available in the development build after alpha.6. Start its matching Lua bridge.
 
 The preview returns the current control and requested value. Apply with `dryRun: false` and use `after` for the actual value. A stepped control can round the request. A changed project revision or mismatched FX GUID rejects the edit. REAPER records the edit in a named undo block. When the value changes and REAPER exposes that block, the result includes an `undoToken`. Pass it to `live_revert_fx_edit` to undo that specific edit. The token expires on use, a revision change, a project switch or a bridge restart. This operation addresses top-level online track FX. To compare audio, render the same beat range before and after the edit, then pass the two WAV paths to `reaper_analyze` as `file` and `referencePath`.
 
+## Audition two versions at matched loudness
+
+Render the same passage twice. Enable the editing toolset, then call `reaper_run` in live or offline mode with:
+
+```json
+{
+  "capability": "audition_ab",
+  "args": {"a": "original/mix.wav", "b": "revision/mix.wav", "targetLufs": -18},
+  "dryRun": false
+}
+```
+
+Open the returned `audition.rpp` or play the two returned WAV files. The project aligns both copies at zero with B muted. To hear B, mute A and unmute B. Both WAVs keep the source timing. The pair must have the same frame count, sample rate and channel count. Use the same timeline start for each render.
+
+The default target is −18 LUFS. A shared lower target accommodates peaks when necessary. The tool applies constant gain, encodes 16-bit PCM, then measures the listening copies again. It returns paths only if they match within 0.5 LU with at least 1 dB of estimated true-peak headroom. Silence or an incompatible pair produces an error. A dry run reports measurements without creating files. Each applied run gets its own folder. Clips shorter than one 400 ms metering block use an ungated estimate and report `gated: false`.
+
+## Live routing, stems and FX automation
+
+- Read `/tracks` for indices and GUIDs. Run `live_add_send` with `source`, `sourceGuid`, `destination`, `destinationGuid`, `pair` and optional `gainDb`. Use `1/2` for a normal stereo send or `3/4` for a sidechain. Both send post-fader audio with MIDI disabled. Read `/tracks/0/sends` to inspect the result. The receiving plugin must use its auxiliary input.
+- To render one track, call `reaper_render` in live mode with `target: "stems"` and `stemTrack: {"index": 1, "guid": "..."}`. Optional `section` uses the same beat bounds as a mix render. The worker renders the track from a project snapshot with its incoming sends. The returned stereo WAV is the selected track output before downstream buses and master FX.
+- Read `/tracks/1/fx/0/parameters/0/envelope` to inspect existing points. Run `live_edit_fx_envelope_point` with the track, FX slot and GUID, parameter and point indices, the observed `timeSeconds` and a new `normalized` value. Preview with `dryRun`. The returned times identify the adjacent anchors. This operation edits interior points on unscaled 0–1 FX envelopes with linear or square segments, while transport is stopped. It rejects automation items and boundary points.
+
+## Several edits as one undo step
+
+`live_batch` runs 1 to 64 edit capabilities as one transaction. Each step is `{capability, args}` with that capability's normal arguments. REAPER shows one undo entry for the whole batch. If a step fails, the earlier steps are undone and the error names the step.
+
+```json
+{"capability": "live_batch", "args": {"steps": [
+  {"capability": "live_add_track", "args": {"name": "Bass"}},
+  {"capability": "live_insert_midi", "args": {"track": 2, "startBeat": 0, "lengthBeats": 8,
+    "notes": [{"beat": 0, "duration": 1, "pitch": 36}]}}
+]}}
+```
+
+A new track takes the next free index (the current track count), so later steps can address it. With `dryRun`, every step is checked against the project as it is now. A step that depends on an earlier step, as the second step above does, shows `valid: false` in that preview and still runs correctly when applied. `live_revert_fx_edit` and `live_batch` itself cannot be steps.
+
+Anywhere a track index is accepted you can pass the track's GUID from `/tracks` instead, in braces: `/tracks/{GUID}/fx`, or `"track": "{GUID}"` in a capability. The GUID stays correct when tracks are reordered.
+
+One call can carry up to 2048 MIDI events and a request up to 1 MB.
+
+## Compose in a live session
+
+`live_compose_piece` writes a whole piece into the open project as one undo step. It adds a track for each of lead, harmony, pad and bass and one drum track, loads the instruments you name, writes the MIDI, sets starting levels and panning, sets the tempo and adds a region for each section.
+
+1. Read `/styles` and `/personas` to choose a starting point, and `/instruments` for the catalogue IDs on this machine.
+2. Preview with `dryRun`. Nothing changes; you get the key, tempo, form, chords and track plan.
+3. Apply it, then render and analyse.
+
+```json
+{"capability": "live_compose_piece", "args": {
+  "style": "swing", "bars": 16, "seed": 3,
+  "instruments": {"lead": "piano", "harmony": "piano", "bass": "bass", "drums": "drums"}}}
+```
+
+- `style` is one of the 8 built-in styles. `persona` is one of 18 film and DJ briefs, each with its own tempo range, groove, harmony and mix targets. Give either, or neither for the default style.
+- `key`, `bpm`, `bars` or `seconds` are optional. The same `seed` always gives the same piece, so change the seed for another take.
+- A role with no instrument still gets its track and notes but makes no sound. The result lists those roles.
+- Drums are written as General MIDI notes: kick 36, snare 38, hat 42, crash 49. Pass `drumMap` for a kit that differs.
+- Tracks start at conservative levels by role so the mix does not clip: lead and bass -10 dB, drums -8 dB, harmony -15 dB, pad -17 dB. Sampled instruments are often quieter than synths, so run `live_auto_mix` afterwards to set the balance and loudness by measurement. Set `levels` to false to leave tracks at unity.
+- `startBar` places the piece later in the project. `setTempo` and `regions` can be turned off.
+- The composer writes 4/4.
+
+`live_write_part` writes one part onto a track that already exists. `chords` is one chord symbol per bar.
+
+```json
+{"capability": "live_write_part", "args": {"track": 2, "part": "bass", "style": "walking",
+  "chords": ["Dm7", "G7", "Cmaj7", "A7"], "startBar": 8}}
+```
+
+| Part | Styles |
+| --- | --- |
+| melody (needs `key`) | lyrical, driving, swing |
+| accompaniment | arpeggio, flowing, broken, block, held, skank, bubble |
+| bass | roots, pulse, octaves, walking, syncopated, reggae, sub, wobble |
+| drums | rock, four, halftime, ballad, onedrop, rockers, steppers, dubstep, chip, swing |
+
+`low` and `high` bound the register of a pitched part.
+
+The composition code comes from LMMS MCP and is included unchanged. What it gives you is correct, playable material with a form, a motif that returns and parts that fit together. How good it sounds still depends on the instruments, and on listening to the render and adjusting.
+
+## Auto-mix a live session
+
+`live_auto_mix` sets track levels by measuring the audio, then checks its own work.
+
+1. It renders one stem for each unmuted track that has items.
+2. It finds the loudest eight bars and measures each stem there.
+3. It moves each track to a target for its role: lead, bass and drums in front, harmony and pads behind.
+4. It moves all tracks together to reach `targetLufs`, stopping early if the true peak would pass `ceilingDb`.
+5. It applies the new levels as one undo step and renders the mix again to confirm.
+
+```json
+{"capability": "live_auto_mix", "args": {"targetLufs": -16, "ceilingDb": -1}}
+{"capability": "live_auto_mix", "args": {"targetLufs": -14, "roles": {"3": "lead", "5": "pad"}}}
+{"capability": "live_auto_mix", "args": {"targetLufs": -18, "balance": false}}
+```
+
+| Role | Measured as | Target in the loudest bars |
+| --- | --- | --- |
+| drums | peak | -8 dBFS |
+| lead | RMS while sounding | -17 dBFS |
+| bass | RMS while sounding | -18 dBFS |
+| counter | RMS while sounding | -22 dBFS |
+| harmony | RMS while sounding | -22.5 dBFS |
+| fx | RMS while sounding | -24 dBFS |
+| pad | RMS while sounding | -26 dBFS |
+
+- Roles are guessed from track names such as Lead, Bass, Drums, Pad, Keys or Strings. A track with no recognisable name is judged by how its stem sounds. Pass `roles` as `{"<track index>": role}` to correct a guess; the result shows each role and where it came from.
+- `balance: false` keeps the balance you have and only sets the overall loudness.
+- `dryRun` renders and measures and returns the plan, and leaves every fader where it is.
+- No limiter or compressor is added. If the peaks are too high to reach the loudness target, the mix stops where the true peak meets the ceiling, and `limitedBy` and `note` say so.
+- The result gives the predicted loudness from the stems and the loudness measured on the confirming render. They should agree within about 1 LU. A larger gap means something in the project reacts to level, such as a compressor on the master.
+- Solo must be off. Muted tracks are left out.
+- Up to 12 tracks at a time; pass `tracks` to choose which.
+- Each stem is its own render, so allow about a minute per track on a cold start. Five tracks took about 110 seconds here with two renders at a time. Set `REAPER_MCP_PARALLEL_RENDERS` from 1 to 4 to match your memory; sampled instruments load once per render.
+- The persona you composed with reports its own `mixTargets`; pass that loudness as `targetLufs`.
+
+## Build a DJ set
+
+Put WAV tracks in the workspace, then:
+
+1. `dj_analyze_tracks` to see what you have. This needs no running REAPER.
+2. `live_build_dj_set` with `dryRun` to read the plan and its warnings.
+3. `live_build_dj_set` to build it, then `reaper_render`.
+
+```json
+{"capability": "dj_analyze_tracks", "args": {"files": ["set/one.wav", "set/two.wav", "set/three.wav"]}}
+{"capability": "live_build_dj_set", "args": {"files": ["set/one.wav", "set/two.wav", "set/three.wav"],
+  "transitionBars": 16, "order": "harmonic", "tempo": "median"}}
+```
+
+For each track the analysis gives:
+
+| Field | Meaning |
+| --- | --- |
+| `bpm`, `tempoConfidence` | Tempo to 0.01 BPM and how sharply the beats line up |
+| `beatOffsetSeconds`, `downbeatOffsetSeconds` | Where the first beat and the first bar line fall in the file |
+| `key`, `camelot`, `keyConfidence` | Estimated key and its Camelot wheel code |
+| `integratedLufs`, `truePeakDbfs` | Loudness and peak |
+| `barEnergyDb`, `drops` | Level of every bar, and the bars where it jumps at least 6 dB to near the track's loudest |
+
+What the build does:
+
+- **Order.** `harmonic` keeps your first track first, then picks each next track by the smallest Camelot move and tempo change. `bpm` sorts by tempo. `given` keeps your order.
+- **Tempo.** Every track is stretched to one set tempo with its pitch kept. `tempo` is `median`, `first` or a number. A track near half or double the set tempo is matched in that relation.
+- **Decks.** Tracks alternate on two new tracks, Deck A and Deck B, with every bar line on the project grid.
+- **Transitions.** Each pair overlaps for `transitionBars` (4 to 64, in fours) with a fade out and a fade in. A short track shortens its transition and the plan says so.
+- **Bass swap.** By default each deck gets REAPER's bundled ReaEQ. The incoming track plays without its low end (a low shelf near 180 Hz, about 26 dB down) until the middle of the transition, where the two decks swap over one bar. Only one bass line plays at a time. `transition: "crossfade"` leaves the EQ out, and the builder falls back to it with a warning when ReaEQ is missing.
+- **Drops.** With `alignDrops`, the incoming track starts far enough into itself that its first drop lands on the bar where the transition ends.
+- **Loudness.** With `matchLoudness`, each item's gain brings the track to `loudnessLufs` (default -16).
+- **Markers.** A region per track and a marker at the start of each transition, named with the key move.
+- `maxBarsPerTrack` shortens every track for a quicker set. `startBar` places the set later in the project.
+
+Read the warnings before you build. They name key clashes, tempo changes over 8%, uncertain beat grids, guessed bar lines and low-confidence keys.
+
+Limits to know:
+
+- WAV files only, up to 250 MB each and 20 tracks a set.
+- The set has one steady tempo. The project must have no tempo changes after the set's start.
+- The grid assumes a steady tempo and 4/4 inside each track. Live recordings and tracks with tempo changes will drift.
+- Key detection is an estimate and can land a fifth away, which on the Camelot wheel is the neighbouring code. Trust `keyConfidence` and your ears.
+- The bass swap is the only EQ move. There are no filter sweeps, echo outs or loops yet.
+- After building, run `live_auto_mix` with `balance` false to set the final loudness.
+
+## Arrange a live session
+
+Enable the `editing` toolset, read the project, then use `reaper_run`. Positions are quarter-note beats from the project start unless a field says seconds.
+
+| Task | Read first | Capability |
+| --- | --- | --- |
+| Play, stop, pause, seek, loop | `/project/transport` | `live_transport` |
+| Markers and regions | `/markers` | `live_add_marker`, `live_edit_marker`, `live_delete_marker` |
+| Tempo and time signature | `/project/tempo_map` | `live_set_tempo`, `live_delete_tempo_marker` |
+| Import audio | `/tracks` | `live_insert_audio` |
+| Move, trim, mute, gain, fade, rename an item | `/tracks/{index}/items` | `live_edit_item` |
+| Split or delete an item | `/tracks/{index}/items` | `live_split_item`, `live_delete_item` |
+| Solo or delete a track | `/tracks` | `reaper_set` on `/tracks/{index}/solo`, `live_delete_track` |
+
+```json
+{"capability": "live_transport", "args": {"command": "set_loop", "enabled": true, "startBeat": 16, "endBeat": 32}}
+{"capability": "live_add_marker", "args": {"name": "Chorus", "beat": 32, "endBeat": 64}}
+{"capability": "live_insert_audio", "args": {"track": 0, "file": "loops/kick.wav", "startBeat": 16}}
+{"capability": "live_edit_item", "args": {"track": 0, "item": 0, "itemGuid": "{GUID}", "startBeat": 32, "fadeOutSeconds": 0.2}}
+```
+
+Points to know:
+
+- Playback is not a project edit. `live_transport` makes no undo step and cannot be a `live_batch` step. It is refused while REAPER is recording, and this server never starts a recording.
+- REAPER numbers markers and regions separately, so marker 1 and region 1 can both exist. Edits and deletes take both `id` and `isRegion`.
+- A marker name cannot be cleared by an edit. Delete the marker and add it again.
+- `live_set_tempo` replaces a tempo marker that is already at that beat and adds one otherwise. A tempo change moves every later beat in seconds, so read positions again afterwards.
+- Item indexes follow timeline order and change after a move or split. Every item edit also takes the item GUID and is refused if the two no longer match. List the items again after each change.
+- An audio item cannot be made longer than its source unless it is looped.
+- `live_insert_audio` takes a workspace-relative wav, flac, mp3, ogg or aiff file.
+- `live_delete_track` removes the track with its items, FX and sends. One undo step in REAPER restores it.
+
+## Effects and automation
+
+| Task | Capability |
+| --- | --- |
+| Add an installed effect to a track | `live_add_fx` with an exact name from `/plugins` |
+| Remove one | `live_remove_fx` |
+| Set a parameter | `live_set_fx_parameter` |
+| Automate a parameter over time | `live_write_fx_automation` |
+
+```json
+{"capability": "live_add_fx", "args": {"track": 0, "plugin": "VST: ReaEQ (Cockos)"}}
+{"capability": "live_write_fx_automation", "args": {"track": 0, "fx": 0, "fxGuid": "{GUID}",
+  "parameterName": "Gain-Low Shelf",
+  "points": [{"beat": 16, "normalized": 0.5}, {"beat": 20, "normalized": 0.1}]}}
+```
+
+- An FX is its chain index plus a check: `fxGuid` from `/tracks/{index}/fx`, or `fxName` (part of its name, at least 3 characters). Use `fxName` inside a `live_batch` for an FX added by an earlier step, whose GUID you cannot know yet.
+- A parameter is its index or its exact `parameterName` from `/tracks/{index}/fx/{fx}/parameters`.
+- Values are normalised 0 to 1. Read the parameter list to see what a value means; for example ReaEQ's shelf gain is 0 dB at 0.5.
+- `live_write_fx_automation` creates the envelope if there is none. Points already between your first and last point are replaced; points outside stay. `shape` is 0 for a straight line to the next point (the default) or 1 for a step.
+- Automation needs a stopped transport and a 0 to 1 parameter.
+
 ## Modes and capabilities
 
 | Mode | Supported now |
@@ -86,7 +303,7 @@ To remove: stop the MCP entry and isolated REAPER instance, remove the client en
 
 ## Still outside this alpha
 
-Instrument replacement, live routing/FX parameter writes, live stems/regions, transport control, general automation, arbitrary complex RPP conversion, Linux verification and cancellation tooling remain outside this alpha. Native MIDI creation, expressive performance insertion, guarded existing-note/keyswitch edits, scoped CC ramps and live mix section renders are included. See `performance-control.md` for source restrictions. No proprietary instruments or sample libraries are bundled.
+Instrument replacement, live routing/FX parameter writes, live stems/regions, recording, take comping, general automation, arbitrary complex RPP conversion, Linux verification and cancellation tooling remain outside this alpha. Native MIDI creation, expressive performance insertion, guarded existing-note/keyswitch edits, scoped CC ramps and live mix section renders are included. See `performance-control.md` for source restrictions. No proprietary instruments or sample libraries are bundled.
 
 ## Codex registration and release checks
 

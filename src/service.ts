@@ -26,11 +26,17 @@ export const pathSchema = z
   .min(1)
   .max(256)
   .regex(
-    /^\/(?:project|tracks|markers|plugins|instruments)(?:\/(?:[a-zA-Z_]+|0|[1-9][0-9]*))*$/,
+    // A track may also be addressed live by its GUID in braces: /tracks/{GUID}/fx
+    // /styles and /personas/<id> read the built-in composition library in either mode.
+    /^\/(?:project|tracks|markers|plugins|instruments|styles|personas)(?:\/(?:[a-zA-Z_]+|[a-z0-9]+(?:-[a-z0-9]+)+|0|[1-9][0-9]*|\{[0-9A-Fa-f-]{36}\}))*$/,
   );
 export { capabilities } from "./editing.js";
 import { capabilities, editSong } from "./editing.js";
+import { auditionCapability } from "./audition.js";
+import { autoMixCapability } from "./automix.js";
+import { djAnalyzeCapability, djBuildCapability } from "./dj.js";
 import { musicCapabilities } from "./music.js";
+import { bridgeState } from "./startup.js";
 
 export class ReaperService {
   song: Song = songSchema.parse({});
@@ -54,6 +60,11 @@ export class ReaperService {
       this.hadLive = true;
       return "live";
     }
+    if (this.live && (await bridgeState(this.live.directory)) === "outdated")
+      throw new ToolError(
+        "bridge_upgrade_required",
+        "REAPER is running an older REAPER MCP bridge script. Save your work, close that REAPER session and start it again so it loads the bridge shipped with this server; no offline fallback occurred",
+      );
     if (
       mode === "live" ||
       this.hadLive ||
@@ -334,9 +345,17 @@ export class ReaperService {
       liveCapabilities: [
         "project/track inspection",
         "FX inventory, paged parameter inspection and guarded parameter edits",
-        "track name/gain/pan/mute",
+        "track name/gain/pan/mute/solo and track removal",
+        "transport: play, stop, pause, seek and loop range",
+        "markers, regions and tempo map edits",
+        "audio and MIDI item listing, import, move, trim, split, fade and delete",
+        "multi-step batches as one undo step",
+        "composition: whole pieces by style or persona, and single parts over a chord progression",
+        "auto-mix: stem-measured role balance and loudness target with a verifying render",
+        "DJ: track analysis (tempo, key, drops) and beatmatched, harmonically ordered sets on two decks",
         "native track, catalogue instrument and beat-based MIDI insertion",
-        "native project new/open/save and isolated mix render",
+        "native project new/open/save, mix and selected-track stem renders",
+        "stereo sends, sidechain routing and matched A/B audition projects",
       ],
       reaperInstalled: !!(await locateReaper()),
       writesEnabled: this.allowWrites,
@@ -344,7 +363,7 @@ export class ReaperService {
   }
   describe(subject: string): unknown {
     if (subject === "song" || subject === "/project") return songJsonSchema;
-    const cap = [...capabilities, ...musicCapabilities].find(
+    const cap = [...capabilities, ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability].find(
       (c) => c.name === subject,
     );
     if (cap)

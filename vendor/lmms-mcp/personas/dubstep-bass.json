@@ -1,0 +1,91 @@
+{
+  "id": "dubstep-bass",
+  "name": "Dubstep Bass",
+  "kind": "dj",
+  "tags": [
+    "dnb",
+    "half-time"
+  ],
+  "brief": "Half-time. Snare on 3, sparse kick, tempo-synced LFO wobble or growl, mid-range grind over a clean sub.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 140,
+    "max": 140,
+    "default": 140,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "half-time",
+    "amount": 0
+  },
+  "groove": {
+    "template": "half-time"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "dubstep",
+    "subfeel": "half-time"
+  },
+  "bass": {
+    "approach": "Half-time. Snare on 3, sparse kick, tempo-synced LFO wobble or growl, mid-range grind over a clean sub.",
+    "archetype": "wobble"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Sparse chord changes behind the wobble"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Half-time at 140 with a moving wobble, not a 4/4 house kick."
+    ],
+    "phraseBars": 16,
+    "energyCurve": "dnb",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona dubstep-bass",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Half-time at 140 with a moving wobble, not a 4/4 house kick."
+    ]
+  }
+}

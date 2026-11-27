@@ -1,0 +1,236 @@
+{
+  "id": "epic-fantasy",
+  "name": "Epic Fantasy",
+  "kind": "film",
+  "tags": [
+    "film",
+    "game",
+    "fantasy",
+    "orchestral",
+    "modal",
+    "heroic",
+    "fanfare",
+    "adventure"
+  ],
+  "brief": "A heroic, wide-open orchestral cue in a modal key. The colour comes from dorian and mixolydian: the raised sixth of dorian and the flat seventh of mixolydian give it an old-world, open sound without leaning on a minor-key cliche. A horn calls first, a harp figure rolls underneath, choir-style pads hold the chords, and an ostinato bass keeps the stride. The key contrast is legato against staccato: long singing lines in the horn and strings against short, crisp woodwind and string figures. Original fanfares only. Tempo 80 to 130, default 108.",
+  "neverDo": [
+    "Quote or paraphrase a known fantasy theme or fanfare.",
+    "Stay on one articulation; legato lines and staccato figures must both appear.",
+    "Leave the mode to a plain major or minor scale for more than a few bars.",
+    "Over-orchestrate every bar; let the horn call and the harp figure stand alone for a phrase.",
+    "Use an unlicensed sample or a leaked library."
+  ],
+  "tempo": {
+    "min": 80,
+    "max": 130,
+    "default": 108,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "straight-eighths",
+    "amount": 0
+  },
+  "groove": {
+    "template": "orchestral-stride",
+    "humanizeMs": 12,
+    "ghostNoteDensity": 0,
+    "fillInterval": 8
+  },
+  "drums": {
+    "kit": "orchestral-percussion",
+    "patterns": "adventure"
+  },
+  "bass": {
+    "approach": "Low strings and bass drum on an ostinato that walks the root and fifth in steady eighths, lifting to the sixth at phrase ends.",
+    "archetype": "pulse"
+  },
+  "harmony": {
+    "keys": [
+      "D dorian",
+      "A dorian",
+      "E dorian",
+      "G dorian"
+    ],
+    "scales": [
+      "dorian",
+      "mixolydian"
+    ],
+    "modes": [
+      "dorian",
+      "mixolydian"
+    ],
+    "progressions": [
+      [
+        "i",
+        "IV",
+        "VII",
+        "i"
+      ],
+      [
+        "i",
+        "VII",
+        "IV",
+        "i"
+      ],
+      [
+        "i",
+        "IV",
+        "i",
+        "VII"
+      ]
+    ],
+    "voicings": [
+      "Open fifths and fourths in the horns",
+      "Harp arpeggios in the raised-sixth mode, spread across two octaves",
+      "Sustained choir-style pads on root, fifth and ninth"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "sfz",
+      "preset": "vsco2ce-french-horn-sustain",
+      "fallback": {
+        "voice": "pad",
+        "volume": 44
+      }
+    },
+    {
+      "role": "harmony",
+      "engine": "sfz",
+      "preset": "vsco2ce-harp",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 48,
+        "pan": -18
+      }
+    },
+    {
+      "role": "pad",
+      "engine": "sfz",
+      "preset": "vsco2ce-violin-ensemble-sustain",
+      "fallback": {
+        "voice": "pad",
+        "volume": 26,
+        "pan": 16
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "sfz",
+      "preset": "vsco2ce-cello-ensemble-spiccato",
+      "fallback": {
+        "voice": "bass",
+        "volume": 40
+      }
+    },
+    {
+      "role": "kick",
+      "engine": "sfz",
+      "preset": "vsco2ce-timpani",
+      "fallback": {
+        "voice": "kick",
+        "volume": 40
+      }
+    },
+    {
+      "role": "hat",
+      "engine": "native",
+      "preset": "light-shaker",
+      "fallback": {
+        "voice": "hat",
+        "volume": 14,
+        "pan": 12
+      }
+    },
+    {
+      "role": "crash",
+      "engine": "native",
+      "preset": "suspended-cymbal",
+      "fallback": {
+        "voice": "hat",
+        "volume": 18
+      }
+    }
+  ],
+  "articulations": [
+    {
+      "instrument": "violin-section",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain": 36,
+        "tremolo": 37,
+        "spiccato": 38,
+        "pizzicato": 39
+      }
+    },
+    {
+      "instrument": "cello-section",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain": 84,
+        "tremolo": 85,
+        "spiccato": 86,
+        "pizzicato": 87
+      }
+    },
+    {
+      "instrument": "flute",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain-non-vibrato": 36,
+        "sustain-vibrato": 37,
+        "expressive": 38,
+        "staccato": 39
+      }
+    },
+    {
+      "instrument": "clarinet",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain": 36,
+        "staccato": 37
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Open with a single horn call over a quiet harp figure.",
+      "Answer a legato phrase with a staccato one, and swap them on the repeat.",
+      "Lift to a mixolydian chord at the high point, then fall back to the dorian centre.",
+      "Finish on an open fifth, not a full triad."
+    ],
+    "phraseBars": 4,
+    "energyCurve": "call-answer-lift",
+    "variants": [
+      "overworld-loop",
+      "fanfare-sting",
+      "quiet-camp-bed"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -18,
+      "truePeakDb": -1.5,
+      "monoBelowHz": 90,
+      "width": 1
+    },
+    "fx": [
+      "hall-reverb",
+      "gentle-bus-compression"
+    ],
+    "platformPreset": "game"
+  },
+  "recipe": "scripts/personas/persona-demo.mjs",
+  "testRender": {
+    "seconds": 49,
+    "seed": 1134,
+    "listeningNotes": [
+      "A horn call states a modal tune in dorian, with a mixolydian lift at the high point.",
+      "Legato sections (long lines) and staccato sections (short figures) both appear, and the loudness and note density differ between them.",
+      "A harp-style arpeggio figure runs under the call.",
+      "Pads hold the chords and an ostinato bass keeps the stride.",
+      "The fanfare is original and ends on an open fifth."
+    ]
+  }
+}

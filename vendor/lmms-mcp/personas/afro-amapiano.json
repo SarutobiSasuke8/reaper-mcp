@@ -1,0 +1,91 @@
+{
+  "id": "afro-amapiano",
+  "name": "Afro Amapiano",
+  "kind": "dj",
+  "tags": [
+    "house",
+    "amapiano-332"
+  ],
+  "brief": "Log drum with glide, 3-3-2 and shakers, warm piano chords, wide pads, polyrhythmic percussion.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 110,
+    "max": 124,
+    "default": 112,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "amapiano-332",
+    "amount": 0.14
+  },
+  "groove": {
+    "template": "amapiano-332"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "four",
+    "subfeel": "amapiano-332"
+  },
+  "bass": {
+    "approach": "Log drum with glide, 3-3-2 and shakers, warm piano chords, wide pads, polyrhythmic percussion.",
+    "archetype": "syncopated"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Warm piano voicings and a gliding low drum"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Log drum or polyrhythmic perc. Not generic deep house."
+    ],
+    "phraseBars": 16,
+    "energyCurve": "house",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona afro-amapiano",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Log drum or polyrhythmic perc. Not generic deep house."
+    ]
+  }
+}

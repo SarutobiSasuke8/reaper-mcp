@@ -16,6 +16,16 @@ Use an existing session and bundled plugins as the common benchmark. Score each 
 
 On Windows with REAPER 7.86 and Node 22.22.1, the packed-build check changed ReaSynth attack to 0.5 normalised. RMS on the same 1.25-second passage moved from -33.98 to -58.68 dBFS. The native undo test restored the control and rejected a reused token. This fixture measures a change in output. Listening preference and performance on other machines still need evaluation.
 
+## Audition and mix benchmark results, 26 November 2026
+
+The development branch now produces two aligned listening WAVs and an A/B project. A fresh install on a second Windows machine reproduced both native fixtures with REAPER 7.86. The original ReaSynth renders measured −31.14 and −55.41 LUFS. Both listening copies and both REAPER re-renders measured −18.00 LUFS. A separate FFmpeg EBU R128 check on the workstation measured −18.0 LUFS for each copy.
+
+The routing fixture puts an 8-second bass under a kick present only from 2 to 4 seconds. A guarded send feeds ReaComp on channels 3/4. Its stereo bass stem changed by 0.00, −10.49 and 0.00 dB across the three measurement windows. Changing one existing ratio-envelope point restored 10.49 dB in the edited window, leaving the three control windows within 0.2 dB. The fixture checks the dry run, adjacent anchors, wrong GUIDs, duplicate routing, feedback rejection, duration and the absence of the kick from the uncompressed stem.
+
+**Comparative result.** On the same workstation and input files, TwelveTake 1.11.0 also produced approximately 10.5 dB of ducking with matching outside levels. Its combined sidechain tool handles the routing and detector choice in one call. This establishes parity for the measured sidechain task. Audition preferences, larger sessions, other servers and broader agent task success still need separate runs. [Pinned reference server](https://github.com/TwelveTake-Studios/reaper-mcp/tree/3718e0158db96ca59aa9b5c982417770368bde0e)
+
+For reproduction, install the tarball, set `REAPER_MCP_RUN_RELEASE_CHECK=true`, then run `node scripts/editing-check.mjs` and `node scripts/editing-check.mjs --routing` from the installed package. Each creates a disposable profile and a JSON report with timings, tool calls and audio measurements. The Windows PR check retains the listening copies. Add the `benchmark-sidechain` PR label before the next push to run the optional pinned comparison on that same runner. The two harnesses perform different checks, so their total durations and call counts are reported separately.
+
 ## What parity means
 
 Practical parity means an agent can inspect a real session, compose and edit MIDI/audio, route tracks, control FX and automation, render, measure the result and undo its changes reliably. It does not mean copying every advertised tool name. Keep 12Ã¢â‚¬â€œ15 top-level tools, progressive discovery and explicit live/offline capability support.

@@ -1,0 +1,91 @@
+{
+  "id": "carnival-party-house",
+  "name": "Carnival Party House",
+  "kind": "dj",
+  "tags": [
+    "house",
+    "house-shuffle"
+  ],
+  "brief": "Late-90s big-room party starter. Kaleidoscopic, theatrical, unpredictable. 4/4 plus breakbeat cuts, horn stabs, sudden dropouts.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 120,
+    "max": 130,
+    "default": 126,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "house-shuffle",
+    "amount": 0.1
+  },
+  "groove": {
+    "template": "house-shuffle"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "four",
+    "subfeel": "house-shuffle"
+  },
+  "bass": {
+    "approach": "Late-90s big-room party starter. Kaleidoscopic, theatrical, unpredictable. 4/4 plus breakbeat cuts, horn stabs, sudden dropouts.",
+    "archetype": "pulse"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Short brass-like chord stabs"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Changes character and surprises. Not a single looping groove."
+    ],
+    "phraseBars": 8,
+    "energyCurve": "house",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona carnival-party-house",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Changes character and surprises. Not a single looping groove."
+    ]
+  }
+}

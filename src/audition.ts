@@ -116,7 +116,8 @@ export const selectAuditionCapability = {
 
 const fileFingerprint = z.object({ file: z.string().min(1).max(4096), sha256: z.string().regex(/^[a-f0-9]{64}$/) });
 const sourceSchema = fileFingerprint.extend({ project: fileFingerprint.optional() });
-const manifestSchema = z.object({ version: z.literal(1), sources: z.tuple([sourceSchema, sourceSchema]) });
+const passageSchema = z.object({ sampleRate: z.number().int().positive(), startFrame: z.number().int().nonnegative(), endFrame: z.number().int().positive() });
+const manifestSchema = passageSchema.extend({ version: z.literal(1), sources: z.tuple([sourceSchema, sourceSchema]) });
 
 export async function selectAuditionRender(workspace: Workspace, args: z.infer<typeof selectAuditionCapability.schema>, dryRun: boolean) {
   const raw = await workspace.read(args.manifest, 64_000);
@@ -134,11 +135,51 @@ export async function selectAuditionRender(workspace: Workspace, args: z.infer<t
   const folder = await mkdtemp(path.join(workspace.root, "selected-render-"));
   try {
     await writeFile(path.join(folder, "full.wav"), bytes, { flag: "wx" });
-    const exported = { ...result, manifest: args.manifest, file: path.basename(folder) + "/full.wav" };
+    const exported = { ...result, passage: passageSchema.parse(manifest), manifest: args.manifest, file: path.basename(folder) + "/full.wav" };
     await writeFile(path.join(folder, "selection.json"), JSON.stringify(exported, null, 2), { flag: "wx" });
     return { ...exported, receipt: path.basename(folder) + "/selection.json" };
   } catch (err) {
     await rm(folder, { recursive: true, force: true });
     throw err;
   }
+}
+
+export const verifyAuditionCapability = {
+  name: "verify_audition_render", toolset: "editing", modes: ["offline", "live"],
+  description: "Compare the approved passage with an independent full re-render using the saved selection receipt. Reports alignment and relative waveform error. Supply a known delivery gain in dB if one was applied to the new render.",
+  schema: z.object({
+    receipt: z.string().min(1).max(4096), rendered: z.string().min(1).max(4096),
+    deliveryGainDb: z.number().min(-40).max(24).default(0),
+  }).strict(),
+};
+
+export async function verifyAuditionRender(workspace: Workspace, args: z.infer<typeof verifyAuditionCapability.schema>) {
+  const raw = await workspace.read(args.receipt, 64_000);
+  const receipt = fileFingerprint.extend({ passage: passageSchema }).parse(JSON.parse(raw.toString("utf8")));
+  const bytes = await workspace.read(receipt.file, 64_000_000);
+  if (digest(bytes) !== receipt.sha256)
+    throw new ToolError("source_changed", "The approved full WAV differs from the selection receipt");
+  const approved: Audio = decodeWav(bytes);
+  const fresh: Audio = decodeWav(await workspace.read(args.rendered, 64_000_000));
+  const { sampleRate, startFrame, endFrame } = receipt.passage;
+  if (sampleRate !== approved.sampleRate || endFrame > approved.frames || startFrame >= endFrame)
+    throw new ToolError("invalid_section", "Selection boundaries do not fit the approved render");
+  if (approved.frames !== fresh.frames || sampleRate !== fresh.sampleRate || approved.channels.length !== fresh.channels.length)
+    return { passed: false, reason: "format_or_duration_changed" };
+  const gain = 10 ** (args.deliveryGainDb / 20);
+  let energy = 0;
+  let error = 0;
+  for (const [channel, source] of approved.channels.entries()) {
+    const candidate = fresh.channels[channel]!;
+    for (let i = startFrame; i < endFrame; i++) {
+      const expected = source[i]! * gain;
+      energy += expected * expected;
+      error += (candidate[i]! - expected) ** 2;
+    }
+  }
+  if (!Number.isFinite(energy) || energy === 0 || !Number.isFinite(error))
+    throw new ToolError("unmeasurable_audio", "The passage needs finite samples and audible reference energy");
+  const relativeRmsError = Math.sqrt(error / energy);
+  return { passed: relativeRmsError <= 0.01, relativeRmsError, tolerance: 0.01, sampleRate,
+    startFrame, endFrame, deliveryGainDb: args.deliveryGainDb };
 }

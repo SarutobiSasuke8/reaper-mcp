@@ -1,6 +1,6 @@
 import { candidateCapability, forkSavedProject } from "./candidate.js";
 import { capabilityCatalogue } from "./contract.js";
-import { selectAuditionCapability, selectAuditionRender, auditionCapability, createAudition } from "./audition.js";
+import { verifyAuditionCapability, verifyAuditionRender, selectAuditionCapability, selectAuditionRender, auditionCapability, createAudition } from "./audition.js";
 import { autoMixCapability, autoMix } from "./automix.js";
 import { lintCapability, lintArrangement } from "./lint.js";
 import { grooveCapability, applyGroove } from "./groove.js";
@@ -236,6 +236,9 @@ export async function call(
     } else if (name === "reaper_run" && args.capability === auditionCapability.name) {
       if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
       value = await createAudition(service.workspace, auditionCapability.schema.parse(args.args), args.dryRun as boolean);
+    } else if (name === "reaper_run" && args.capability === verifyAuditionCapability.name) {
+      if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
+      value = await verifyAuditionRender(service.workspace, verifyAuditionCapability.schema.parse(args.args));
     } else if (name === "reaper_run" && args.capability === selectAuditionCapability.name) {
       if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
       value = await selectAuditionRender(service.workspace, selectAuditionCapability.schema.parse(args.args), args.dryRun as boolean);

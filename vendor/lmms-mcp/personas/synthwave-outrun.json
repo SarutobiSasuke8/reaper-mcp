@@ -1,0 +1,91 @@
+{
+  "id": "synthwave-outrun",
+  "name": "Synthwave Outrun",
+  "kind": "dj",
+  "tags": [
+    "house",
+    "straight-techno"
+  ],
+  "brief": "Gated-reverb snare, analog polys, 8th arpeggiated bass, chorus pads, neon atmosphere. Good for game menus and chase cues.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 80,
+    "max": 118,
+    "default": 100,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "straight-techno",
+    "amount": 0
+  },
+  "groove": {
+    "template": "straight-techno"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "four",
+    "subfeel": "straight-techno"
+  },
+  "bass": {
+    "approach": "Gated-reverb snare, analog polys, 8th arpeggiated bass, chorus pads, neon atmosphere. Good for game menus and chase cues.",
+    "archetype": "octaves"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Slow chorus pads and an eighth-note arpeggio"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Gated snare and analog polys, not a supersaw festival lead."
+    ],
+    "phraseBars": 16,
+    "energyCurve": "house",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona synthwave-outrun",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Gated snare and analog polys, not a supersaw festival lead."
+    ]
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "id": "dark-synth-scifi",
+  "name": "Dark Synth Sci-Fi",
+  "kind": "film",
+  "tags": ["film", "game", "sci-fi", "synth", "dark", "drone", "arpeggio", "industrial"],
+  "brief": "A cold, machine-made score. An analogue-style drone sits under everything and slowly opens and closes with a ladder-style low-pass filter. A sequenced arpeggio runs over it, pitched in phrygian or harmonic minor, and a pulsing bass locks to the grid. Industrial percussion, metallic hits and short noise bursts replace a drum kit, and a thin layer of additive air gives the top end a glassy sheen. The motion is in the filter and the arpeggio, not in a melody. Tempo 70 to 110, default 92. Prefer the Atelier engines for the drone, arpeggio and air when they are installed; native voices are the fallback.",
+  "neverDo": [
+    "Quote or paraphrase a known synth-score theme or its arpeggio.",
+    "Keep the filter fixed; it must move across the cue.",
+    "Let the arpeggio play at one level; vary its gate, accent or octave.",
+    "Add a lead melody that hides the drone and the arpeggio.",
+    "Bundle a GPL or proprietary synth binary or a third-party factory preset."
+  ],
+  "tempo": { "min": 70, "max": 110, "default": 92, "timeSignature": "4/4" },
+  "swing": { "template": "straight-sixteenths", "amount": 0 },
+  "groove": { "template": "machine-grid", "humanizeMs": 2, "ghostNoteDensity": 0.05, "fillInterval": 8 },
+  "drums": { "kit": "industrial-percussion", "patterns": "battle" },
+  "bass": {
+    "approach": "A pulse bass on steady eighth notes, tightly gated, shifting root with the chord and dropping an octave at the cadence.",
+    "archetype": "pulse"
+  },
+  "harmony": {
+    "keys": ["A harmonic minor", "D phrygian", "C harmonic minor", "E phrygian"],
+    "scales": ["phrygian", "harmonic minor"],
+    "modes": ["phrygian"],
+    "progressions": [
+      ["i", "iv", "i", "VI"],
+      ["i", "VI", "iv", "i"],
+      ["i", "iv", "VI", "i"]
+    ],
+    "voicings": [
+      "Open fifth drone on the root",
+      "Arpeggio on root, minor third, fifth and flat sixth",
+      "Additive air in the upper partials over the chord"
+    ]
+  },
+  "signatureSounds": [
+    { "role": "lead", "engine": "atelier", "preset": "atelier-sequenced-arp", "fallback": { "voice": "pluck", "volume": 38, "pan": 14 } },
+    { "role": "harmony", "engine": "atelier", "preset": "atelier-additive-air", "fallback": { "voice": "pad", "volume": 14, "pan": -22 } },
+    { "role": "pad", "engine": "atelier", "preset": "atelier-analog-drone", "fallback": { "voice": "pad", "volume": 30 } },
+    { "role": "bass", "engine": "native", "preset": "gated-pulse-bass", "fallback": { "voice": "bass", "volume": 52 } },
+    { "role": "kick", "engine": "native", "preset": "industrial-kick", "fallback": { "voice": "kick", "volume": 66 } },
+    { "role": "snare", "engine": "native", "preset": "metal-hit", "fallback": { "voice": "clap", "volume": 34 } },
+    { "role": "hat", "engine": "native", "preset": "noise-burst-hat", "fallback": { "voice": "hat", "volume": 20, "pan": 20 } }
+  ],
+  "arrangement": {
+    "habits": [
+      "Start with the drone only, filter nearly closed.",
+      "Bring in the arpeggio, then open the filter over eight bars.",
+      "Add the pulse bass and industrial hits, then strip back to drone and air.",
+      "Close the filter again on the final phrase."
+    ],
+    "phraseBars": 8,
+    "energyCurve": "drone-open-peak-close",
+    "variants": ["exploration-loop", "pursuit-cue", "cold-bed"]
+  },
+  "mix": {
+    "targets": { "lufs": -15, "truePeakDb": -1, "monoBelowHz": 100, "width": 1.2 },
+    "fx": ["ladder-filter-sweep", "long-reverb", "bus-compression"],
+    "platformPreset": "streaming"
+  },
+  "recipe": "scripts/personas/persona-demo.mjs",
+  "testRender": {
+    "seconds": 52,
+    "seed": 1135,
+    "listeningNotes": [
+      "A sustained drone is present throughout, and its brightness changes over time.",
+      "A sequenced arpeggio in phrygian or harmonic minor runs for most of the cue.",
+      "Filter movement shows as a rise and fall in the spectral centroid.",
+      "Pulse bass and industrial hits enter in the middle and leave before the end.",
+      "No lead melody covers the drone and the arpeggio."
+    ]
+  }
+}

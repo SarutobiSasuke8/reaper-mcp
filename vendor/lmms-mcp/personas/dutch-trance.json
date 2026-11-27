@@ -1,0 +1,91 @@
+{
+  "id": "dutch-trance",
+  "name": "Dutch Trance",
+  "kind": "dj",
+  "tags": [
+    "house",
+    "straight-techno"
+  ],
+  "brief": "Rolling gallop bass, supersaw leads, gated pads, 32-bar breakdowns, long filter opens into the lead.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 136,
+    "max": 140,
+    "default": 138,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "straight-techno",
+    "amount": 0
+  },
+  "groove": {
+    "template": "straight-techno"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "four",
+    "subfeel": "straight-techno"
+  },
+  "bass": {
+    "approach": "Rolling gallop bass, supersaw leads, gated pads, 32-bar breakdowns, long filter opens into the lead.",
+    "archetype": "octaves"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Long gated chords opening into the lead"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Long breakdown before the drop. Supersaw lead, not a short pop drop."
+    ],
+    "phraseBars": 32,
+    "energyCurve": "house",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona dutch-trance",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Long breakdown before the drop. Supersaw lead, not a short pop drop."
+    ]
+  }
+}

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { ToolError } from "./errors.js";
 import { Workspace } from "./workspace.js";
 import { LiveBridge, TRACK_GUID } from "./live.js";
+import { composeSchemas, composeDescriptions, buildPiece, buildPart, type Step } from "./compose.js";
 import { isolatedIni, locateReaper, runProcess } from "./render.js";
 
 const text = z
@@ -203,7 +204,7 @@ const baseCapabilities = Object.entries({...musicSchemas, live_batch: batchSchem
     modes: ["live"],
     description:
       name === "live_batch"
-        ? "Run 1-64 live edit capabilities as one transaction and one native undo step. Each step is {capability, args} using that capability's own schema. If any step fails, the earlier steps are undone and the project is left as read. A new track takes the next free index, so later steps can address it. dryRun validates every step against the current project only, so a step that depends on an earlier one reports an error there. Not allowed: live_batch, live_revert_fx_edit, live_transport."
+        ? "Run 1-64 live edit capabilities as one transaction and one native undo step. Each step is {capability, args} using that capability's own schema. If any step fails, the earlier steps are undone and the project is left as read. A new track takes the next free index, so later steps can address it. dryRun validates every step against the current project only, so a step that depends on an earlier one reports an error there. Not allowed: live_batch, live_revert_fx_edit, live_transport, live_compose_piece, live_write_part (the last two are already one undo step)."
         : name === "live_edit_fx_envelope_point"
         ? "Adjust one existing interior FX automation point. Read the parameter's /envelope first. Preserves its time and adjacent anchors; supports linear/square segments on unscaled 0-1 controls."
         : name === "live_add_send"
@@ -234,6 +235,15 @@ export const musicCapabilities = [
   })),
 ];
 const liveSchemas: Record<string, z.ZodType> = { ...musicSchemas, ...arrangeSchemas };
+musicCapabilities.push(
+  ...Object.entries(composeSchemas).map(([name, schema]) => ({
+    name,
+    schema: schema as z.ZodType,
+    toolset: "editing",
+    modes: ["live"],
+    description: composeDescriptions[name as keyof typeof composeSchemas],
+  })),
+);
 const entrySchema = z
   .object({
     id: text,
@@ -348,11 +358,31 @@ export async function runMusic(
   dry: boolean,
   workspace?: Workspace,
 ) {
+  if (capability === "live_compose_piece" || capability === "live_write_part") {
+    let built: { steps: Step[]; summary: Record<string, unknown> };
+    if (capability === "live_compose_piece") {
+      const args = composeSchemas.live_compose_piece.parse(raw);
+      // New tracks are appended, so their indexes follow from the current track count.
+      const tracks = await bridge.get("/tracks");
+      built = buildPiece(args, Array.isArray(tracks) ? tracks.length : 0);
+    } else {
+      built = buildPart(composeSchemas.live_write_part.parse(raw));
+      await bridge.get("/project");
+    }
+    // Resolving every step first means an unknown instrument fails before anything is written.
+    const prepared = [];
+    for (const step of built.steps)
+      // set_track is the bridge action behind reaper_set; its arguments need no resolving.
+      prepared.push({ action: step.capability, args: step.capability === "set_track" ? step.args : await prepare(step.capability, step.args, workspace) });
+    if (dry) return { dryRun: true, ...built.summary, editSteps: prepared.length };
+    const applied = await bridge.batch(prepared, false);
+    return { dryRun: false, ...built.summary, editSteps: prepared.length, undoLabel: applied.undoLabel, project: applied.project, revision: applied.revision };
+  }
   if (capability === "live_batch") {
     const { steps } = batchSchema.parse(raw);
     const prepared = [];
     for (const [i, step] of steps.entries()) {
-      if (["live_batch", "live_revert_fx_edit", "live_transport"].includes(step.capability))
+      if (["live_batch", "live_revert_fx_edit", "live_transport", "live_compose_piece", "live_write_part"].includes(step.capability))
         throw new ToolError("invalid_input", `Step ${i + 1}: ${step.capability} cannot run in a batch`);
       try {
         prepared.push({ action: step.capability, args: await prepare(step.capability, step.args, workspace) });

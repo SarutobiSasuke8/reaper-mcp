@@ -27,7 +27,8 @@ export const pathSchema = z
   .max(256)
   .regex(
     // A track may also be addressed live by its GUID in braces: /tracks/{GUID}/fx
-    /^\/(?:project|tracks|markers|plugins|instruments)(?:\/(?:[a-zA-Z_]+|0|[1-9][0-9]*|\{[0-9A-Fa-f-]{36}\}))*$/,
+    // /styles and /personas/<id> read the built-in composition library in either mode.
+    /^\/(?:project|tracks|markers|plugins|instruments|styles|personas)(?:\/(?:[a-zA-Z_]+|[a-z0-9]+(?:-[a-z0-9]+)+|0|[1-9][0-9]*|\{[0-9A-Fa-f-]{36}\}))*$/,
   );
 export { capabilities } from "./editing.js";
 import { capabilities, editSong } from "./editing.js";
@@ -347,6 +348,7 @@ export class ReaperService {
         "markers, regions and tempo map edits",
         "audio and MIDI item listing, import, move, trim, split, fade and delete",
         "multi-step batches as one undo step",
+        "composition: whole pieces by style or persona, and single parts over a chord progression",
         "native track, catalogue instrument and beat-based MIDI insertion",
         "native project new/open/save, mix and selected-track stem renders",
         "stereo sends, sidechain routing and matched A/B audition projects",

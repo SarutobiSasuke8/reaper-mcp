@@ -14,6 +14,11 @@
 - Items: `/tracks/{index}/items` lists audio and MIDI items. `live_insert_audio`, `live_edit_item`, `live_split_item` and `live_delete_item` import, move, trim, fade, split and delete them.
 - Tracks: `live_delete_track`, and `solo` joins the settable track fields.
 - Add `scripts/arrange-check.mjs`, a native acceptance check for these capabilities.
+- Composition: `live_compose_piece` writes a complete piece into the live project as one undo step, from a style or a persona, with tracks, catalogue instruments, MIDI clips, starting levels, a tempo marker and a region per section.
+- `live_write_part` writes one melody, accompaniment, bass or drum part over a chord progression onto an existing track.
+- `/styles`, `/personas` and `/personas/{id}` read the built-in composition library in either mode: 8 styles and 18 film and DJ personas.
+- Vendor the LMMS MCP composer, melody, motif, solo, blueprint, arranger-lint and persona modules byte-for-byte, with their style and persona data.
+- Add `scripts/compose-check.mjs`, a native check that composes, reads back, renders and measures a piece.
 
 ## 0.1.0-alpha.6
 

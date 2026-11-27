@@ -90,6 +90,46 @@ Anywhere a track index is accepted you can pass the track's GUID from `/tracks` 
 
 One call can carry up to 2048 MIDI events and a request up to 1 MB.
 
+## Compose in a live session
+
+`live_compose_piece` writes a whole piece into the open project as one undo step. It adds a track for each of lead, harmony, pad and bass and one drum track, loads the instruments you name, writes the MIDI, sets starting levels and panning, sets the tempo and adds a region for each section.
+
+1. Read `/styles` and `/personas` to choose a starting point, and `/instruments` for the catalogue IDs on this machine.
+2. Preview with `dryRun`. Nothing changes; you get the key, tempo, form, chords and track plan.
+3. Apply it, then render and analyse.
+
+```json
+{"capability": "live_compose_piece", "args": {
+  "style": "swing", "bars": 16, "seed": 3,
+  "instruments": {"lead": "piano", "harmony": "piano", "bass": "bass", "drums": "drums"}}}
+```
+
+- `style` is one of the 8 built-in styles. `persona` is one of 18 film and DJ briefs, each with its own tempo range, groove, harmony and mix targets. Give either, or neither for the default style.
+- `key`, `bpm`, `bars` or `seconds` are optional. The same `seed` always gives the same piece, so change the seed for another take.
+- A role with no instrument still gets its track and notes but makes no sound. The result lists those roles.
+- Drums are written as General MIDI notes: kick 36, snare 38, hat 42, crash 49. Pass `drumMap` for a kit that differs.
+- Tracks start at conservative levels by role so the mix does not clip: lead and bass -10 dB, drums -8 dB, harmony -15 dB, pad -17 dB. Sampled instruments are often quieter than synths, so analyse the render and raise `volume_db` where needed. Set `levels` to false to leave tracks at unity.
+- `startBar` places the piece later in the project. `setTempo` and `regions` can be turned off.
+- The composer writes 4/4.
+
+`live_write_part` writes one part onto a track that already exists. `chords` is one chord symbol per bar.
+
+```json
+{"capability": "live_write_part", "args": {"track": 2, "part": "bass", "style": "walking",
+  "chords": ["Dm7", "G7", "Cmaj7", "A7"], "startBar": 8}}
+```
+
+| Part | Styles |
+| --- | --- |
+| melody (needs `key`) | lyrical, driving, swing |
+| accompaniment | arpeggio, flowing, broken, block, held, skank, bubble |
+| bass | roots, pulse, octaves, walking, syncopated, reggae, sub, wobble |
+| drums | rock, four, halftime, ballad, onedrop, rockers, steppers, dubstep, chip, swing |
+
+`low` and `high` bound the register of a pitched part.
+
+The composition code comes from LMMS MCP and is included unchanged. What it gives you is correct, playable material with a form, a motif that returns and parts that fit together. How good it sounds still depends on the instruments, and on listening to the render and adjusting.
+
 ## Arrange a live session
 
 Enable the `editing` toolset, read the project, then use `reaper_run`. Positions are quarter-note beats from the project start unless a field says seconds.

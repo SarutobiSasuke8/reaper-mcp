@@ -1,4 +1,5 @@
 import { auditionCapability, createAudition } from "./audition.js";
+import { isLibraryPath, readLibrary, libraryPaths } from "./compose.js";
 import { sectionSchema } from "./music.js";
 // House-template contract annotations and safe-error wrapper adapted for SDK 1.x.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -213,7 +214,16 @@ export async function call(
       "reaper_describe",
       "reaper_find_capability",
     ]);
-    if (name === "reaper_run" && args.capability === auditionCapability.name) {
+    if ((name === "reaper_get" || name === "reaper_list") && isLibraryPath(args.path)) {
+      const found = readLibrary(args.path);
+      if (found === undefined) throw new ToolError("not_found", "Unknown library path; use /styles, /personas or /personas/{id}");
+      if (name === "reaper_get") value = found;
+      else {
+        if (!Array.isArray(found)) throw new ToolError("invalid_path", "List requires an array path");
+        const offset = args.offset as number;
+        value = { total: found.length, offset, items: found.slice(offset, offset + (args.limit as number)) };
+      }
+    } else if (name === "reaper_run" && args.capability === auditionCapability.name) {
       if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
       value = await createAudition(service.workspace, auditionCapability.schema.parse(args.args), args.dryRun as boolean);
     } else if (selected === "live" && !common.has(name)) {
@@ -329,6 +339,7 @@ export async function call(
                 "/tracks/{index}/fx/{fx}/parameters/{parameter}",
                 "/tracks/{index}/fx/{fx}/parameters/{parameter}/envelope",
               ],
+              library: libraryPaths,
               trackAddressing:
                 "{index} is zero-based; a track GUID in braces from /tracks works in its place and survives reordering",
               transactions:

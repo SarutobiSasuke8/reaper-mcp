@@ -1,0 +1,91 @@
+{
+  "id": "french-filter-house",
+  "name": "French Filter House",
+  "kind": "dj",
+  "tags": [
+    "house",
+    "house-shuffle"
+  ],
+  "brief": "Sidechained filtered disco or funk loops, filter automation as the hook, tight compressed drums, funky bass.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 118,
+    "max": 124,
+    "default": 122,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "house-shuffle",
+    "amount": 0.12
+  },
+  "groove": {
+    "template": "house-shuffle"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "four",
+    "subfeel": "house-shuffle"
+  },
+  "bass": {
+    "approach": "Sidechained filtered disco or funk loops, filter automation as the hook, tight compressed drums, funky bass.",
+    "archetype": "syncopated"
+  },
+  "harmony": {
+    "scales": [
+      "dorian"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Disco voicings with a moving filter"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Driven by the filter, not a stacked supersaw."
+    ],
+    "phraseBars": 16,
+    "energyCurve": "house",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona french-filter-house",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Driven by the filter, not a stacked supersaw."
+    ]
+  }
+}

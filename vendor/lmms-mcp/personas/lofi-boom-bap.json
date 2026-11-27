@@ -1,0 +1,91 @@
+{
+  "id": "lofi-boom-bap",
+  "name": "Lo-fi Boom Bap",
+  "kind": "dj",
+  "tags": [
+    "ukg",
+    "mpc-swing-70"
+  ],
+  "brief": "Dusty swung drums, vinyl or tape colour, chopped original or CC0 phrases, warm keys, tight boom-bap pocket.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 80,
+    "max": 95,
+    "default": 88,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "mpc-swing-70",
+    "amount": 0.45
+  },
+  "groove": {
+    "template": "mpc-swing-70"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "halftime",
+    "subfeel": "mpc-swing-70"
+  },
+  "bass": {
+    "approach": "Dusty swung drums, vinyl or tape colour, chopped original or CC0 phrases, warm keys, tight boom-bap pocket.",
+    "archetype": "roots"
+  },
+  "harmony": {
+    "scales": [
+      "dorian"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Close warm chords in a dusty pocket"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Swung dusty pocket rather than a 4/4 house kick."
+    ],
+    "phraseBars": 8,
+    "energyCurve": "ukg",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona lofi-boom-bap",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Swung dusty pocket rather than a 4/4 house kick."
+    ]
+  }
+}

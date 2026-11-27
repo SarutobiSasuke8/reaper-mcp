@@ -1,0 +1,237 @@
+{
+  "id": "action-score",
+  "name": "Action Score",
+  "kind": "film",
+  "tags": [
+    "film",
+    "game",
+    "action",
+    "trailer",
+    "orchestral",
+    "hybrid",
+    "percussive",
+    "ostinato"
+  ],
+  "brief": "An action cue built on a driving ostinato in the low strings, with a hybrid of big hand drums and a tight modern kit underneath and short, hard brass punches on top. The rhythmic cells alternate short notes with a long one, so the pulse always leans forward. Harmony is phrygian or natural minor and moves by the flat second and the flat seventh. Write it as a trailer or game cue: a quiet pulse, a build where the ostinato enters, a hit section where brass answers the strings, then a cutoff. Tempo sits between 90 and 140, default 132. Articulations change on purpose: sustain for the swells, staccato and spiccato for the pulse, marcato for the punches.",
+  "neverDo": [
+    "Quote or paraphrase an existing film cue, theme or trailer sting.",
+    "Leave the ostinato running at one dynamic for the whole cue; build it by adding layers and by changing articulation.",
+    "Put the brass punches and the ostinato on the same beat every bar without a rest.",
+    "Use an unlicensed sample, a leaked library or an unknown-origin drum break.",
+    "Close with a copied stinger; end on an original cutoff or a held low note."
+  ],
+  "tempo": {
+    "min": 90,
+    "max": 140,
+    "default": 132,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "straight-sixteenths",
+    "amount": 0
+  },
+  "groove": {
+    "template": "tight-ostinato",
+    "humanizeMs": 6,
+    "ghostNoteDensity": 0.1,
+    "fillInterval": 4
+  },
+  "drums": {
+    "kit": "hybrid-hand-drums-tight-kit",
+    "patterns": "battle"
+  },
+  "bass": {
+    "approach": "Low strings play a sixteenth-note ostinato in short, short, long cells, accented on the first note of each beat. The flat second leans in on the last bar of each phrase.",
+    "archetype": "pulse"
+  },
+  "harmony": {
+    "keys": [
+      "E phrygian",
+      "D phrygian",
+      "C phrygian",
+      "F# phrygian"
+    ],
+    "scales": [
+      "phrygian",
+      "natural minor"
+    ],
+    "modes": [
+      "phrygian",
+      "aeolian"
+    ],
+    "progressions": [
+      [
+        "i",
+        "II",
+        "i",
+        "VII"
+      ],
+      [
+        "i",
+        "VI",
+        "VII",
+        "i"
+      ],
+      [
+        "i",
+        "i",
+        "II",
+        "VII"
+      ]
+    ],
+    "voicings": [
+      "Open fifths in the low strings",
+      "Brass in unison or octaves for the punches",
+      "Upper strings holding a sustained minor triad over the pulse"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "sfz",
+      "preset": "vsco2ce-trumpet-staccato",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 66
+      }
+    },
+    {
+      "role": "harmony",
+      "engine": "sfz",
+      "preset": "vsco2ce-violin-ensemble-spiccato",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 40,
+        "pan": -14
+      }
+    },
+    {
+      "role": "pad",
+      "engine": "sfz",
+      "preset": "vsco2ce-violin-ensemble-sustain",
+      "fallback": {
+        "voice": "pad",
+        "volume": 34,
+        "pan": 14
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "sfz",
+      "preset": "vsco2ce-cello-ensemble-spiccato",
+      "fallback": {
+        "voice": "bass",
+        "volume": 40
+      }
+    },
+    {
+      "role": "kick",
+      "engine": "native",
+      "preset": "hybrid-low-hand-drum",
+      "fallback": {
+        "voice": "kick",
+        "volume": 36
+      }
+    },
+    {
+      "role": "snare",
+      "engine": "native",
+      "preset": "tight-clap-snare",
+      "fallback": {
+        "voice": "clap",
+        "volume": 54
+      }
+    },
+    {
+      "role": "hat",
+      "engine": "native",
+      "preset": "tight-closed-hat",
+      "fallback": {
+        "voice": "hat",
+        "volume": 34,
+        "pan": 18
+      }
+    },
+    {
+      "role": "crash",
+      "engine": "native",
+      "preset": "long-open-hat",
+      "fallback": {
+        "voice": "hat",
+        "volume": 34
+      }
+    }
+  ],
+  "articulations": [
+    {
+      "instrument": "violin-section",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain": 36,
+        "tremolo": 37,
+        "spiccato": 38,
+        "pizzicato": 39
+      }
+    },
+    {
+      "instrument": "cello-section",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain": 84,
+        "tremolo": 85,
+        "spiccato": 86,
+        "pizzicato": 87
+      }
+    },
+    {
+      "instrument": "tuba",
+      "library": "vsco-2-ce",
+      "keyswitches": {
+        "sustain": 84,
+        "staccato": 85,
+        "marcato": 85
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Start with the pulse alone, then bring in the ostinato bar by bar.",
+      "Answer each string phrase with a brass punch on the off-beat.",
+      "Strip the texture to the low drums for one bar before the biggest hit.",
+      "End on a cutoff with silence, not a decaying tail."
+    ],
+    "phraseBars": 4,
+    "energyCurve": "pulse-build-hit-cutoff",
+    "variants": [
+      "trailer-cue",
+      "game-combat-loop",
+      "short-sting-free-cue"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1,
+      "monoBelowHz": 90,
+      "width": 0.9
+    },
+    "fx": [
+      "hall-reverb",
+      "bus-compression",
+      "low-drum-saturation"
+    ],
+    "platformPreset": "streaming"
+  },
+  "recipe": "scripts/personas/persona-demo.mjs",
+  "testRender": {
+    "seconds": 52,
+    "seed": 1132,
+    "listeningNotes": [
+      "A low-string ostinato of short and long cells holds one pitch centre for most of the cue.",
+      "Articulation contrast is clear: sustained swells, then staccato or spiccato pulse, then accented brass punches.",
+      "Drums are a low hand-drum layer with a tight kit, and they thin out before the biggest hit.",
+      "Harmony stays phrygian or natural minor and moves by the flat second and flat seventh.",
+      "The ending is a cutoff, with no copied sting."
+    ]
+  }
+}

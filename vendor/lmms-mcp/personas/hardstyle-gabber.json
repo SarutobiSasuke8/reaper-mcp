@@ -1,0 +1,91 @@
+{
+  "id": "hardstyle-gabber",
+  "name": "Hardstyle Gabber",
+  "kind": "dj",
+  "tags": [
+    "techno",
+    "straight-techno"
+  ],
+  "brief": "Distorted pitched kick is the bass, reverse-bass offbeat, screech or raw lead.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 150,
+    "max": 180,
+    "default": 150,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "straight-techno",
+    "amount": 0
+  },
+  "groove": {
+    "template": "straight-techno"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "four",
+    "subfeel": "straight-techno"
+  },
+  "bass": {
+    "approach": "Distorted pitched kick is the bass, reverse-bass offbeat, screech or raw lead.",
+    "archetype": "pulse"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Brief dark chords under the pitched kick"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Kick is pitched and distorted."
+    ],
+    "phraseBars": 16,
+    "energyCurve": "techno",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona hardstyle-gabber",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Kick is pitched and distorted."
+    ]
+  }
+}

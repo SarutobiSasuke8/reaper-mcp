@@ -1,0 +1,91 @@
+{
+  "id": "drum-and-bass",
+  "name": "Drum and Bass",
+  "kind": "dj",
+  "tags": [
+    "dnb",
+    "straight-techno"
+  ],
+  "brief": "Two-step kick, snares on 2 and 4, ghost snares, reese or neuro growl, programmed amen-style edits (never a famous break).",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 170,
+    "max": 176,
+    "default": 174,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "straight-techno",
+    "amount": 0
+  },
+  "groove": {
+    "template": "straight-techno"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "rock",
+    "subfeel": "straight-techno"
+  },
+  "bass": {
+    "approach": "Two-step kick, snares on 2 and 4, ghost snares, reese or neuro growl, programmed amen-style edits (never a famous break).",
+    "archetype": "sub"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Dark open chords above the reese"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "170s, two-step kick, no sampled famous break."
+    ],
+    "phraseBars": 16,
+    "energyCurve": "dnb",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona drum-and-bass",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "170s, two-step kick, no sampled famous break."
+    ]
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "id": "g-funk",
+  "name": "G-Funk",
+  "kind": "dj",
+  "tags": [
+    "ukg",
+    "mpc-swing-60"
+  ],
+  "brief": "Portamento squelch lead, deep rounded bass, laid-back drums, sparse keys, lazy swing.",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 90,
+    "max": 102,
+    "default": 96,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "mpc-swing-60",
+    "amount": 0.3
+  },
+  "groove": {
+    "template": "mpc-swing-60"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "halftime",
+    "subfeel": "mpc-swing-60"
+  },
+  "bass": {
+    "approach": "Portamento squelch lead, deep rounded bass, laid-back drums, sparse keys, lazy swing.",
+    "archetype": "syncopated"
+  },
+  "harmony": {
+    "scales": [
+      "natural minor"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Sparse mellow keys"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Mid-tempo, led by a sliding squelch, not trap hats."
+    ],
+    "phraseBars": 16,
+    "energyCurve": "ukg",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona g-funk",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Mid-tempo, led by a sliding squelch, not trap hats."
+    ]
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "id": "uk-garage",
+  "name": "UK Garage",
+  "kind": "dj",
+  "tags": [
+    "ukg",
+    "ukg-shuffle"
+  ],
+  "brief": "Skippy 2-step, 60-66% 16th shuffle, organ or warp bass, chopped vocals (user or CC0 only).",
+  "neverDo": [
+    "Use unverified or unlicensed samples."
+  ],
+  "tempo": {
+    "min": 130,
+    "max": 136,
+    "default": 132,
+    "timeSignature": "4/4"
+  },
+  "swing": {
+    "template": "ukg-shuffle",
+    "amount": 0.32
+  },
+  "groove": {
+    "template": "ukg-shuffle"
+  },
+  "drums": {
+    "kit": "native-kit",
+    "patterns": "rock",
+    "subfeel": "ukg-shuffle"
+  },
+  "bass": {
+    "approach": "Skippy 2-step, 60-66% 16th shuffle, organ or warp bass, chopped vocals (user or CC0 only).",
+    "archetype": "syncopated"
+  },
+  "harmony": {
+    "scales": [
+      "dorian"
+    ],
+    "modes": [],
+    "progressions": [],
+    "voicings": [
+      "Organ stabs over the skipping hats"
+    ]
+  },
+  "signatureSounds": [
+    {
+      "role": "lead",
+      "engine": "native",
+      "preset": "pluck",
+      "fallback": {
+        "voice": "pluck",
+        "volume": 56
+      }
+    },
+    {
+      "role": "bass",
+      "engine": "native",
+      "preset": "bass",
+      "fallback": {
+        "voice": "bass",
+        "volume": 70
+      }
+    }
+  ],
+  "arrangement": {
+    "habits": [
+      "Shuffles and skips rather than a straight 4/4."
+    ],
+    "phraseBars": 16,
+    "energyCurve": "ukg",
+    "variants": [
+      "club-extended"
+    ]
+  },
+  "mix": {
+    "targets": {
+      "lufs": -14,
+      "truePeakDb": -1.5
+    },
+    "fx": [],
+    "platformPreset": "club"
+  },
+  "recipe": "lmms-compose --persona uk-garage",
+  "testRender": {
+    "seconds": 45,
+    "seed": 17,
+    "listeningNotes": [
+      "Shuffles and skips rather than a straight 4/4."
+    ]
+  }
+}

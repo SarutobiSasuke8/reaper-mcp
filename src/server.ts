@@ -1,4 +1,4 @@
-import { auditionCapability, createAudition } from "./audition.js";
+import { selectAuditionCapability, selectAuditionRender, auditionCapability, createAudition } from "./audition.js";
 import { autoMixCapability, autoMix } from "./automix.js";
 import { lintCapability, lintArrangement } from "./lint.js";
 import { grooveCapability, applyGroove } from "./groove.js";
@@ -233,6 +233,9 @@ export async function call(
     } else if (name === "reaper_run" && args.capability === auditionCapability.name) {
       if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
       value = await createAudition(service.workspace, auditionCapability.schema.parse(args.args), args.dryRun as boolean);
+    } else if (name === "reaper_run" && args.capability === selectAuditionCapability.name) {
+      if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
+      value = await selectAuditionRender(service.workspace, selectAuditionCapability.schema.parse(args.args), args.dryRun as boolean);
     } else if (selected === "live" && !common.has(name)) {
       if (
         (name === "reaper_get" || name === "reaper_list") &&
@@ -323,7 +326,7 @@ export async function call(
             {
               name: "editing",
               enabled: service.enabled.has("editing"),
-              capabilities: [...capabilities, ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability].map(
+              capabilities: [...capabilities, ...musicCapabilities, auditionCapability, selectAuditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability].map(
                 (c) => c.name,
               ),
             },
@@ -373,7 +376,7 @@ export async function call(
         case "reaper_find_capability":
           value = [
             ...capabilities.map((c) => ({ ...c, modes: ["offline"] })),
-            ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability,
+            ...musicCapabilities, auditionCapability, selectAuditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability,
           ]
             .filter((c) =>
               `${c.name} ${c.description}`

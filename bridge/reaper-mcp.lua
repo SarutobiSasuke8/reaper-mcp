@@ -560,6 +560,60 @@ define("live_remove_fx",{undo=true,batch=true},function(p,a,result)
     result.fxCount=reaper.TrackFX_GetCount(t)
   end
 end)
+define("live_add_gain_ride",{undo=true,batch=true},function(p,a,result)
+  assert(reaper.GetPlayStateEx(p)==0,"Stop transport before adding a ride")
+  assert(type(a.track)=="string","Supply the track GUID")
+  local track=resolve_track(p,a.track)
+  assert(reaper.GetMediaTrackInfo_Value(track,"I_NCHAN")==2,"Ride requires a stereo track")
+  assert(reaper.GetMediaTrackInfo_Value(track,"I_FXEN")~=0,"Enable track FX first")
+  local mode=reaper.GetTrackAutomationMode(track)
+  local override=reaper.GetGlobalAutomationOverride()
+  assert((override==-1 and (mode==0 or mode==1)) or override==0 or override==1,"Ride requires trim/read or read automation")
+  assert(type(a.rideId)=="string" and #a.rideId<=64 and a.rideId:match("^[%w_%-]+$"),"Invalid ride ID")
+  local label="REAPER MCP ride "..a.rideId
+  local count=reaper.TrackFX_GetCount(track)
+  assert(count<128,"FX limit")
+  for i=0,count-1 do
+    local _,name=reaper.TrackFX_GetNamedConfigParm(track,i,"renamed_name")
+    assert(name~=label,"Ride ID already exists on this track")
+  end
+  local points=list(a.points,128)
+  assert(#points>=3 and points[1].gainDb==0 and points[#points].gainDb==0,"Ride endpoints must be zero dB")
+  local rows={__array=true}
+  local last=-1
+  for _,pt in ipairs(points) do
+    local pos=num(pt.position,0,10000)
+    local time=pos
+    if a.unit=="bars" then
+      local bar=math.floor(pos)
+      local _,first,ending=reaper.TimeMap_GetMeasureInfo(p,bar)
+      time=reaper.TimeMap2_QNToTime(p,first+(ending-first)*(pos-bar))
+    elseif a.unit=="quarterNotes" then
+      time=reaper.TimeMap2_QNToTime(p,pos)
+    else assert(a.unit=="seconds","Unknown time unit") end
+    assert(time>last,"Ride points must move forward")
+    rows[#rows+1]={timeSeconds=time,gainDb=num(pt.gainDb,-24,12)}
+    last=time
+  end
+  result.points=rows
+  return function()
+    local fx=reaper.TrackFX_AddByName(track,"JS:utility/volume_pan_sample_accurate_auto",false,-1)
+    assert(fx>=0,"Bundled sample-accurate volume JSFX unavailable")
+    local ok,err=pcall(function()
+      assert(reaper.TrackFX_SetNamedConfigParm(track,fx,"renamed_name",label),"Failed to name ride")
+      for param=0,2 do assert(reaper.TrackFX_SetParam(track,fx,param,0),"Failed to initialise volume/pan") end
+      local env=assert(reaper.GetFXEnvelope(track,fx,0,true),"Failed to create ride envelope")
+      reaper.DeleteEnvelopePointRange(env,-1,1e10)
+      for _,pt in ipairs(rows) do
+        assert(reaper.InsertEnvelopePoint(env,pt.timeSeconds,pt.gainDb,0,0,false,true),"Failed to insert ride point")
+      end
+      reaper.Envelope_SortPoints(env)
+      result.fx=fx
+      result.fxGuid=reaper.TrackFX_GetFXGUID(track,fx)
+    end)
+    if not ok then reaper.TrackFX_Delete(track,fx);error(err,0) end
+  end
+end)
 -- Writes automation points for one FX parameter, creating the envelope when there is none.
 -- Existing points from the first new point to the last are replaced; points outside stay.
 define("live_write_fx_automation",{undo=true,batch=true},function(p,a,result)

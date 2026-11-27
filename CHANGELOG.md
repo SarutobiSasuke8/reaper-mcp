@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Vendor sidechain pump analysis and mid-beat trigger advice from LMMS source `0dff284533eb23af408bc1b596d348d6410640bb` (#85).
+
 - Vendor tempo-grid bar-energy curves, peak bar, range and drop detection from green LMMS PR #83, with the same targeted arrangement advice.
 
 ## 0.1.0-alpha.6

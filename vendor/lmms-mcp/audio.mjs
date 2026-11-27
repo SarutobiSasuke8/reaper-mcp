@@ -329,6 +329,74 @@ function levels(audio, start, end) {
   return result;
 }
 
+export function pumpDepth({ sampleRate, channels }, { bpm, offset = 0, slices = 16 } = {}) {
+  if (!Number.isFinite(bpm) || bpm <= 0) {
+    throw new RangeError('bpm must be a finite number > 0');
+  }
+  if (!Number.isInteger(slices) || slices < 4) {
+    throw new RangeError('slices must be an integer >= 4');
+  }
+  if (!Number.isFinite(offset) || offset < 0) {
+    throw new RangeError('offset must be finite and >= 0');
+  }
+
+  const nCh = channels && channels.length ? channels.length : 0;
+  const n = nCh > 0 ? channels[0].length : 0;
+
+  const beatLen = Math.round(sampleRate * 60 / bpm);
+  const sliceLen = Math.floor(beatLen / slices);
+  if (!Number.isSafeInteger(beatLen) || sliceLen < 1) {
+    throw new RangeError("bpm must yield at least one sample per slice");
+  }
+  const start = Math.round(offset * sampleRate);
+
+  const floorLin = 10 ** -4.5;
+  const sum = new Float64Array(slices);
+  let beats = 0;
+
+  for (let s = start; s + beatLen <= n; s += beatLen) {
+    for (let k = 0; k < slices; k++) {
+      const i0 = s + k * sliceLen;
+      const i1 = s + (k + 1) * sliceLen;
+      let acc = 0;
+      for (let i = i0; i < i1; i++) {
+        let m = 0;
+        for (let c = 0; c < nCh; c++) m += channels[c][i];
+        m /= nCh;
+        acc += m * m;
+      }
+      sum[k] += Math.sqrt(acc / sliceLen);
+    }
+    beats++;
+  }
+
+  if (beats === 0) {
+    return { beats: 0, profileDb: [], depthDb: null, dipSlice: null, pumping: false };
+  }
+
+  const profileDb = new Array(slices);
+  let maxDb = -Infinity;
+  let minDb = Infinity;
+  let dipSlice = 0;
+  for (let k = 0; k < slices; k++) {
+    const db = pumpRound1(20 * Math.log10(Math.max(sum[k] / beats, floorLin)));
+    profileDb[k] = db;
+    if (db > maxDb) maxDb = db;
+    if (db < minDb) {
+      minDb = db;
+      dipSlice = k;
+    }
+  }
+
+  const depthDb = pumpRound1(maxDb - minDb);
+  const pumping = beats >= 4 && depthDb >= 3;
+  return { beats, profileDb, depthDb, dipSlice, pumping };
+}
+
+function pumpRound1(x) {
+  return Number(x.toFixed(1));
+}
+
 export function analyze(audio, { sections = [], pitch = false, expectedBpm, expectedKey, expectedSwing, reference } = {}) {
   const requestedSwing = expectedSwing === undefined ? undefined : parseExpectedSwing(expectedSwing);
   const expectedCamelot = expectedKey === undefined ? undefined : parseExpectedKey(expectedKey);
@@ -375,7 +443,10 @@ export function analyze(audio, { sections = [], pitch = false, expectedBpm, expe
   const energy = Number.isFinite(arrangementBpm) && arrangementBpm > 0
     ? barEnergy(audio, { bpm: arrangementBpm, beatsPerBar: 4 }) : null;
   const arrangement = energy === null ? null : { ...energy, drops: findDrops(energy.bars) };
+  const pump = Number.isFinite(arrangementBpm) && arrangementBpm > 0
+    ? pumpDepth(audio, { bpm: arrangementBpm }) : null;
   const report = {
+    pump,
     arrangement,
     rhythm,
     key,
@@ -416,6 +487,10 @@ export function loopJoinClicks(loop) {
 // Plain-language warnings an agent can act on without listening.
 export function advise(report, { loop = false, targetLufs } = {}) {
   const notes = [];
+  const pump = report.pump;
+  if (pump && pump.beats >= 8 && pump.pumping && ![0, 1, pump.profileDb.length - 1].includes(pump.dipSlice)) {
+    notes.push("The sidechain dip lands mid-beat: check the sidechain trigger is on the kick.");
+  }
   const arrangement = report.arrangement;
   if (arrangement) {
     if (arrangement.bars.length >= 16 && arrangement.drops.length === 0) notes.push('No drop found: no bar rises 6 dB over the previous four. Add a build and a clear drop if this is a dance track.');

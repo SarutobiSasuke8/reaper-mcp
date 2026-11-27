@@ -342,7 +342,11 @@ export class ReaperService {
       liveCapabilities: [
         "project/track inspection",
         "FX inventory, paged parameter inspection and guarded parameter edits",
-        "track name/gain/pan/mute",
+        "track name/gain/pan/mute/solo and track removal",
+        "transport: play, stop, pause, seek and loop range",
+        "markers, regions and tempo map edits",
+        "audio and MIDI item listing, import, move, trim, split, fade and delete",
+        "multi-step batches as one undo step",
         "native track, catalogue instrument and beat-based MIDI insertion",
         "native project new/open/save, mix and selected-track stem renders",
         "stereo sends, sidechain routing and matched A/B audition projects",

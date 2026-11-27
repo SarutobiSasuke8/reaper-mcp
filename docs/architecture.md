@@ -32,6 +32,8 @@ A batch runs its steps in order inside one undo block. If a step fails, the brid
 
 The bridge and server are released together. A heartbeat with another protocol number means REAPER is still running an older bridge script: the server reports `bridge_upgrade_required` and never falls back to offline.
 
+Transport commands change playback, not the project. They are registered without an undo block, cannot be batch steps and are refused during recording.
+
 One validated edit call creates one undo step. Validate the entire request before touching the project; `dryRun` reports planned changes. Undo grouping alone is not rollback on exceptions: single calls restore their own partial work (MIDI buffer, inserted item or FX), and batches undo the whole block. One call carries at most 2048 MIDI events so a single tick stays bounded. Transport and file rendering have different reversibility from project edits.
 
 ## Extensions and optional workstation setup

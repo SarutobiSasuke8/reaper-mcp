@@ -168,12 +168,12 @@ export class LiveBridge {
   ): Promise<unknown> {
     this.guard();
     const match = new RegExp(
-      `^/tracks/(0|[1-9][0-9]*|${TRACK_GUID})/(name|volume_db|pan|mute)$`,
+      `^/tracks/(0|[1-9][0-9]*|${TRACK_GUID})/(name|volume_db|pan|mute|solo)$`,
     ).exec(objectPath);
     if (!match)
       throw new ToolError(
         "unsupported_live",
-        "Live set supports track name, volume_db, pan and mute only",
+        "Live set supports track name, volume_db, pan, mute and solo only",
       );
     const field = match[2]!;
     const schema =
@@ -182,7 +182,7 @@ export class LiveBridge {
             .string()
             .max(200)
             .refine((s) => !/[\r\n\x00]/.test(s))
-        : field === "mute"
+        : field === "mute" || field === "solo"
           ? z.boolean()
           : z
               .number()

@@ -147,6 +147,7 @@ local function track_view(t)
   local vol=reaper.GetMediaTrackInfo_Value(t,"D_VOL")
   return {name=name,guid=reaper.GetTrackGUID(t),volume_db=vol>0 and math.max(-150,20*math.log(vol,10)) or -150,
     pan=reaper.GetMediaTrackInfo_Value(t,"D_PAN"),mute=reaper.GetMediaTrackInfo_Value(t,"B_MUTE")~=0,
+    solo=reaper.GetMediaTrackInfo_Value(t,"I_SOLO")~=0,
     itemCount=reaper.CountTrackMediaItems(t),fxCount=reaper.TrackFX_GetCount(t)}
 end
 local function item_view(p,it)
@@ -158,6 +159,68 @@ local function item_view(p,it)
   return {guid=guid,takeGuid=takeguid,isMidi=take and reaper.TakeIsMIDI(take) or false,
     startBeat=start,lengthBeats=reaper.TimeMap2_timeToQN(p,pos+reaper.GetMediaItemInfo_Value(it,'D_LENGTH'))-start,
     looped=reaper.GetMediaItemInfo_Value(it,'B_LOOPSRC')~=0}
+end
+local function item_detail(p,it)
+  local view=item_view(p,it)
+  local take=reaper.GetActiveTake(it)
+  view.positionSeconds=reaper.GetMediaItemInfo_Value(it,'D_POSITION')
+  view.lengthSeconds=reaper.GetMediaItemInfo_Value(it,'D_LENGTH')
+  view.mute=reaper.GetMediaItemInfo_Value(it,'B_MUTE')~=0
+  local vol=reaper.GetMediaItemInfo_Value(it,'D_VOL')
+  view.gainDb=vol>0 and math.max(-150,20*math.log(vol,10)) or -150
+  view.fadeInSeconds=reaper.GetMediaItemInfo_Value(it,'D_FADEINLEN')
+  view.fadeOutSeconds=reaper.GetMediaItemInfo_Value(it,'D_FADEOUTLEN')
+  view.takeCount=reaper.CountTakes(it)
+  if take then
+    local _,name=reaper.GetSetMediaItemTakeInfo_String(take,'P_NAME','',false)
+    view.name=name
+    if not view.isMidi then
+      local source=reaper.GetMediaItemTake_Source(take)
+      if source then
+        view.file=reaper.GetMediaSourceFileName(source,'')
+        view.sourceLengthSeconds=reaper.GetMediaSourceLength(source)
+        view.sourceOffsetSeconds=reaper.GetMediaItemTakeInfo_Value(take,'D_STARTOFFS')
+      end
+    end
+  end
+  return view
+end
+local function transport_view(p)
+  local state=reaper.GetPlayStateEx(p)
+  local position=(state&1)~=0 and reaper.GetPlayPositionEx(p) or reaper.GetCursorPositionEx(p)
+  local loop_start,loop_end=reaper.GetSet_LoopTimeRange2(p,false,true,0,0,false)
+  return {state=(state&4)~=0 and "recording" or (state&2)~=0 and "paused" or (state&1)~=0 and "playing" or "stopped",
+    positionSeconds=position,positionBeats=reaper.TimeMap2_timeToQN(p,position),
+    cursorSeconds=reaper.GetCursorPositionEx(p),
+    loop={enabled=reaper.GetSetRepeatEx(p,-1)==1,startSeconds=loop_start,endSeconds=loop_end,
+      startBeat=reaper.TimeMap2_timeToQN(p,loop_start),endBeat=reaper.TimeMap2_timeToQN(p,loop_end)}}
+end
+local function marker_views(p)
+  local total=reaper.CountProjectMarkers(p)
+  assert(total<=2048,"Marker read limit")
+  local out={__array=true}
+  for i=0,total-1 do
+    local _,region,pos,finish,name,id,color=reaper.EnumProjectMarkers3(p,i)
+    local m={id=id,isRegion=region,name=name,startSeconds=pos,startBeat=reaper.TimeMap2_timeToQN(p,pos),color=color}
+    if region then m.endSeconds=finish;m.endBeat=reaper.TimeMap2_timeToQN(p,finish) end
+    out[#out+1]=m
+  end
+  return out
+end
+local function tempo_point(p,index)
+  local ok,time,_,_,bpm,numerator,denominator,linear=reaper.GetTempoTimeSigMarker(p,index)
+  assert(ok,"Tempo marker not found")
+  local point={index=index,timeSeconds=time,beat=reaper.TimeMap2_timeToQN(p,time),bpm=bpm,linear=linear}
+  if numerator>0 then point.timeSignature={numerator=numerator,denominator=denominator} end
+  return point
+end
+local function tempo_map(p)
+  local count=reaper.CountTempoTimeSigMarkers(p)
+  assert(count<=2048,"Tempo map read limit")
+  local points={__array=true}
+  for i=0,count-1 do points[#points+1]=tempo_point(p,i) end
+  local bpm,beats_per_bar=reaper.GetProjectTimeSignature2(p)
+  return {projectBpm=bpm,beatsPerBar=beats_per_bar,markers=points}
 end
 local function track_fx(p, track_ref, fx)
   local t=resolve_track(p,track_ref)
@@ -226,7 +289,7 @@ local function get_value(p, object_path)
     return parameters
   end
   local vt,vi=object_path:match('^/tracks/(%d+)/items/(%d+)$')
-  if vt then return item_view(p,assert(reaper.GetTrackMediaItem(assert(reaper.GetTrack(p,tonumber(vt)),"Track not found"),tonumber(vi)),"Item not found")) end
+  if vt then return item_detail(p,assert(reaper.GetTrackMediaItem(assert(reaper.GetTrack(p,tonumber(vt)),"Track not found"),tonumber(vi)),"Item not found")) end
 
   if object_path=="/plugins" then
     local plugins={__array=true}
@@ -258,6 +321,9 @@ local function get_value(p, object_path)
     for i=0,count-1 do local ok,selected,muted,start,ending,channel,pitch,velocity=reaper.MIDI_GetNote(take,i);notes[#notes+1]={index=i,selected=selected,muted=muted,startBeat=reaper.MIDI_GetProjQNFromPPQPos(take,start),endBeat=reaper.MIDI_GetProjQNFromPPQPos(take,ending),channel=channel,pitch=pitch,velocity=velocity} end
     return notes
   end
+  if object_path=="/project/transport" then return transport_view(p) end
+  if object_path=="/project/tempo_map" then return tempo_map(p) end
+  if object_path=="/markers" then return marker_views(p) end
   if object_path=="/project" then return {name=reaper.GetProjectName(p),tempo=reaper.Master_GetTempo(),trackCount=reaper.CountTracks(p)} end
   if object_path=="/project/tempo" then return reaper.Master_GetTempo() end
   if object_path=="/tracks" then
@@ -281,6 +347,16 @@ local function get_value(p, object_path)
         destinationChannel=get("I_DSTCHAN"),gain=get("D_VOL"),mode=get("I_SENDMODE"),midiFlags=get("I_MIDIFLAGS")}
     end
     return sends
+  end
+  if field=="items" then
+    local count=reaper.CountTrackMediaItems(t)
+    assert(count<=2048,"Item read limit; this track has too many items")
+    local items={__array=true}
+    for i=0,count-1 do
+      local view=item_detail(p,reaper.GetTrackMediaItem(t,i));view.index=i
+      items[#items+1]=view
+    end
+    return items
   end
   if field=="fx" then
     local fx={__array=true}; assert(reaper.TrackFX_GetCount(t)<=128,"FX limit exceeded")
@@ -309,6 +385,7 @@ define("set_track",{undo=true,batch=true},function(p,a,result)
   local param
   if field=="name" then text(value,"Invalid name")
   elseif field=="mute" then assert(type(value)=="boolean","Invalid mute"); param="B_MUTE"; value=value and 1 or 0
+  elseif field=="solo" then assert(type(value)=="boolean","Invalid solo"); param="I_SOLO"; value=value and 2 or 0
   elseif field=="volume_db" then assert(type(value)=="number" and value>=-150 and value<=24,"Invalid gain"); param="D_VOL"; value=10^(value/20)
   elseif field=="pan" then assert(type(value)=="number" and value>=-1 and value<=1,"Invalid pan"); param="D_PAN"
   else error("Unsupported live field",0) end
@@ -651,6 +728,234 @@ local function insert_clip(with_controllers)
 end
 define("live_insert_midi",{undo=true,batch=true},insert_clip(false))
 define("live_insert_performance",{undo=true,batch=true},insert_clip(true))
+
+-- Transport, markers and tempo ------------------------------------------------
+-- Playback is not a project edit: no undo step, and it cannot be a batch step.
+define("live_transport",{},function(p,a,result)
+  local command=a.command
+  assert(command=="play" or command=="stop" or command=="pause" or command=="seek" or command=="set_loop","Unknown transport command")
+  assert((reaper.GetPlayStateEx(p)&4)==0,"Recording in progress; this server does not control recording")
+  local target,loop_start,loop_end
+  if command=="seek" then target=reaper.TimeMap2_QNToTime(p,num(a.beat,0,100000)) end
+  if command=="set_loop" then
+    assert(a.enabled==nil or type(a.enabled)=="boolean","Invalid enabled")
+    if a.startBeat~=nil or a.endBeat~=nil then
+      loop_start=reaper.TimeMap2_QNToTime(p,num(a.startBeat,0,100000))
+      loop_end=reaper.TimeMap2_QNToTime(p,num(a.endBeat,0,100000))
+      assert(loop_end>loop_start,"Loop must move forward")
+    end
+    assert(loop_start or a.enabled~=nil,"Nothing to change")
+  end
+  result.before=transport_view(p)
+  return function()
+    if command=="play" then reaper.OnPlayButtonEx(p)
+    elseif command=="stop" then reaper.OnStopButtonEx(p)
+    elseif command=="pause" then
+      if (reaper.GetPlayStateEx(p)&3)==1 then reaper.OnPauseButtonEx(p) end
+    elseif command=="seek" then reaper.SetEditCurPos2(p,target,false,true)
+    else
+      if loop_start then reaper.GetSet_LoopTimeRange2(p,true,true,loop_start,loop_end,false) end
+      if a.enabled~=nil then reaper.GetSetRepeatEx(p,a.enabled and 1 or 0) end
+    end
+    result.transport=transport_view(p)
+  end
+end)
+
+local function find_marker(p,id,region)
+  num(id,0,2147483647,true)
+  assert(type(region)=="boolean","Invalid isRegion")
+  for i=0,reaper.CountProjectMarkers(p)-1 do
+    local _,isrgn,pos,finish,name,number,color=reaper.EnumProjectMarkers3(p,i)
+    if number==id and isrgn==region then return {pos=pos,finish=finish,name=name,color=color} end
+  end
+  error(region and "Region not found; read /markers" or "Marker not found; read /markers",0)
+end
+local function marker_result(p,id,region)
+  for _,m in ipairs(marker_views(p)) do if m.id==id and m.isRegion==region then return m end end
+end
+define("live_add_marker",{undo=true,batch=true},function(p,a,result)
+  local name=a.name==nil and "" or text(a.name,"Invalid name",200)
+  local region=a.endBeat~=nil
+  local start=reaper.TimeMap2_QNToTime(p,num(a.beat,0,100000))
+  local finish=0
+  if region then
+    finish=reaper.TimeMap2_QNToTime(p,num(a.endBeat,0,100000))
+    assert(finish>start,"Region must move forward")
+  end
+  assert(reaper.CountProjectMarkers(p)<2048,"Marker limit")
+  result.isRegion=region
+  return function()
+    local id=reaper.AddProjectMarker2(p,region,start,finish,name,-1,0)
+    assert(id>=0,"Marker creation failed")
+    result.marker=marker_result(p,id,region)
+  end
+end)
+define("live_edit_marker",{undo=true,batch=true},function(p,a,result)
+  local current_marker=find_marker(p,a.id,a.isRegion)
+  local name=a.name==nil and current_marker.name or text(a.name,"Invalid name",200)
+  -- SetProjectMarker3 keeps the old name when given an empty one, so refuse instead of silently ignoring it.
+  assert(a.name==nil or #name>0,"Marker name cannot be cleared; delete and add the marker instead")
+  local start=a.beat~=nil and reaper.TimeMap2_QNToTime(p,num(a.beat,0,100000)) or current_marker.pos
+  local finish=current_marker.finish
+  if a.isRegion then
+    if a.endBeat~=nil then finish=reaper.TimeMap2_QNToTime(p,num(a.endBeat,0,100000)) end
+    assert(finish>start,"Region must move forward")
+  else assert(a.endBeat==nil,"A marker has no end; use a region") end
+  assert(a.name~=nil or a.beat~=nil or a.endBeat~=nil,"Nothing to change")
+  result.before=marker_result(p,a.id,a.isRegion)
+  return function()
+    assert(reaper.SetProjectMarker3(p,a.id,a.isRegion,start,finish,name,0),"Marker edit failed")
+    result.marker=marker_result(p,a.id,a.isRegion)
+  end
+end)
+define("live_delete_marker",{undo=true,batch=true},function(p,a,result)
+  find_marker(p,a.id,a.isRegion)
+  result.before=marker_result(p,a.id,a.isRegion)
+  return function() assert(reaper.DeleteProjectMarker(p,a.id,a.isRegion),"Marker delete failed") end
+end)
+
+-- Adds a tempo/time-signature marker, or replaces the one already at that beat.
+define("live_set_tempo",{undo=true,batch=true},function(p,a,result)
+  local bpm=num(a.bpm,20,300)
+  local time=reaper.TimeMap2_QNToTime(p,num(a.beat,0,100000))
+  local numerator,denominator=0,0
+  if a.timeSignature~=nil then
+    assert(type(a.timeSignature)=="table","Invalid time signature")
+    numerator=num(a.timeSignature.numerator,1,64,true)
+    denominator=num(a.timeSignature.denominator,1,64,true)
+    assert(denominator&(denominator-1)==0,"Time signature denominator must be a power of two")
+  end
+  assert(a.linear==nil or type(a.linear)=="boolean","Invalid linear")
+  local count=reaper.CountTempoTimeSigMarkers(p)
+  assert(count<2048,"Tempo marker limit")
+  local index=-1
+  for i=0,count-1 do
+    local _,at=reaper.GetTempoTimeSigMarker(p,i)
+    if math.abs(at-time)<0.000001 then index=i;result.before=tempo_point(p,i);break end
+  end
+  result.replaced=index>=0
+  return function()
+    assert(reaper.SetTempoTimeSigMarker(p,index,time,-1,-1,bpm,numerator,denominator,a.linear==true),"Tempo edit failed")
+    reaper.UpdateTimeline()
+    result.tempoMap=tempo_map(p)
+  end
+end)
+define("live_delete_tempo_marker",{undo=true,batch=true},function(p,a,result)
+  local index=num(a.index,0,reaper.CountTempoTimeSigMarkers(p)-1,true)
+  local point=tempo_point(p,index)
+  assert(math.abs(point.bpm-num(a.bpm,1,1000))<0.0001,"Tempo marker changed; read /project/tempo_map again")
+  result.before=point
+  return function()
+    assert(reaper.DeleteTempoTimeSigMarker(p,index),"Tempo marker delete failed")
+    reaper.UpdateTimeline()
+    result.tempoMap=tempo_map(p)
+  end
+end)
+
+-- Items and tracks ----------------------------------------------------------------
+-- Item indexes follow timeline order and shift after edits, so every edit also names the item GUID.
+local function resolve_item(p,a)
+  local t=resolve_track(p,a.track)
+  local it=assert(reaper.GetTrackMediaItem(t,num(a.item,0,9999,true)),"Item not found")
+  local _,guid=reaper.GetSetMediaItemInfo_String(it,'GUID','',false)
+  assert(guid==a.itemGuid,"Item identity changed; list the track's items again")
+  return t,it
+end
+define("live_insert_audio",{undo=true,batch=true},function(p,a,result)
+  local t=resolve_track(p,a.track)
+  local file=text(a.file,"Invalid audio file",4096)
+  local f=assert(io.open(file,"rb"),"Audio file missing");f:close()
+  local position=reaper.TimeMap2_QNToTime(p,num(a.startBeat,0,100000))
+  local name=a.name~=nil and text(a.name,"Invalid item name",200) or nil
+  assert(reaper.CountTrackMediaItems(t)<10000,"Item limit")
+  return function()
+    local source=assert(reaper.PCM_Source_CreateFromFile(file),"REAPER could not open the audio file")
+    local length,is_beats=reaper.GetMediaSourceLength(source)
+    if not (length>0 and not is_beats) then reaper.PCM_Source_Destroy(source);error("Not a readable audio file",0) end
+    local item=reaper.AddMediaItemToTrack(t)
+    local ok,err=pcall(function()
+      local take=assert(reaper.AddTakeToMediaItem(item),"Take creation failed")
+      assert(reaper.SetMediaItemTake_Source(take,source),"Source assignment failed")
+      reaper.SetMediaItemInfo_Value(item,'D_POSITION',position)
+      reaper.SetMediaItemInfo_Value(item,'D_LENGTH',length)
+      reaper.SetMediaItemInfo_Value(item,'B_LOOPSRC',0)
+      if name then reaper.GetSetMediaItemTakeInfo_String(take,'P_NAME',name,true) end
+      reaper.UpdateItemInProject(item)
+    end)
+    if not ok then reaper.DeleteTrackMediaItem(t,item);error(err,0) end
+    result.item=item_detail(p,item)
+    result.itemCount=reaper.CountTrackMediaItems(t)
+  end
+end)
+define("live_edit_item",{undo=true,batch=true},function(p,a,result)
+  local t,it=resolve_item(p,a)
+  local view=item_detail(p,it)
+  local start_beat=a.startBeat~=nil and num(a.startBeat,0,100000) or view.startBeat
+  local length_beats=a.lengthBeats~=nil and num(a.lengthBeats,0.000001,100000) or view.lengthBeats
+  local position=reaper.TimeMap2_QNToTime(p,start_beat)
+  local length=reaper.TimeMap2_QNToTime(p,start_beat+length_beats)-position
+  local retime=a.startBeat~=nil or a.lengthBeats~=nil
+  if a.lengthBeats~=nil and view.sourceLengthSeconds and not view.looped then
+    assert(length<=view.sourceLengthSeconds-view.sourceOffsetSeconds+0.000001,"Length exceeds the audio source; the item is not looped")
+  end
+  assert(a.mute==nil or type(a.mute)=="boolean","Invalid mute")
+  local gain=a.gainDb~=nil and 10^(num(a.gainDb,-150,24)/20) or nil
+  local fade_in=a.fadeInSeconds~=nil and num(a.fadeInSeconds,0,3600) or nil
+  local fade_out=a.fadeOutSeconds~=nil and num(a.fadeOutSeconds,0,3600) or nil
+  if fade_in or fade_out then
+    assert((fade_in or view.fadeInSeconds)+(fade_out or view.fadeOutSeconds)<=length+0.000001,"Fades exceed the item length")
+  end
+  local name=a.name~=nil and text(a.name,"Invalid item name",200) or nil
+  assert(name==nil or reaper.GetActiveTake(it),"Item has no take to name")
+  local destination
+  if a.toTrack~=nil then
+    destination=resolve_track(p,a.toTrack,"Destination track not found")
+    if destination==t then destination=nil end
+  end
+  assert(retime or a.mute~=nil or gain or fade_in or fade_out or name or a.toTrack~=nil,"Nothing to change")
+  result.before=view
+  return function()
+    local function set(key,value) assert(reaper.SetMediaItemInfo_Value(it,key,value),"Item edit failed: "..key) end
+    if retime then set('D_POSITION',position);set('D_LENGTH',length) end
+    if a.mute~=nil then set('B_MUTE',a.mute and 1 or 0) end
+    if gain then set('D_VOL',gain) end
+    if fade_in then set('D_FADEINLEN',fade_in) end
+    if fade_out then set('D_FADEOUTLEN',fade_out) end
+    if name then reaper.GetSetMediaItemTakeInfo_String(reaper.GetActiveTake(it),'P_NAME',name,true) end
+    if destination then assert(reaper.MoveMediaItemToTrack(it,destination),"Item move failed") end
+    reaper.UpdateItemInProject(it)
+    result.item=item_detail(p,it)
+  end
+end)
+define("live_split_item",{undo=true,batch=true},function(p,a,result)
+  local t,it=resolve_item(p,a)
+  local view=item_detail(p,it)
+  local at=reaper.TimeMap2_QNToTime(p,num(a.beat,0,100000))
+  assert(at>view.positionSeconds+0.000001 and at<view.positionSeconds+view.lengthSeconds-0.000001,"Split point must fall inside the item")
+  result.before=view
+  return function()
+    local right=assert(reaper.SplitMediaItem(it,at),"Split failed")
+    result.left=item_detail(p,it);result.right=item_detail(p,right)
+    result.itemCount=reaper.CountTrackMediaItems(t)
+  end
+end)
+define("live_delete_item",{undo=true,batch=true},function(p,a,result)
+  local t,it=resolve_item(p,a)
+  result.before=item_detail(p,it)
+  return function()
+    assert(reaper.DeleteTrackMediaItem(t,it),"Item delete failed")
+    result.itemCount=reaper.CountTrackMediaItems(t)
+  end
+end)
+define("live_delete_track",{undo=true,batch=true},function(p,a,result)
+  local t=resolve_track(p,a.track)
+  assert(reaper.GetTrackGUID(t)==a.trackGuid,"Track identity changed; read /tracks again")
+  result.before=track_view(t)
+  return function()
+    reaper.DeleteTrack(t)
+    result.trackCount=reaper.CountTracks(p)
+  end
+end)
 
 -- Execution -----------------------------------------------------------------
 local function call(p,req)

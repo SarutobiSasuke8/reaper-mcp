@@ -8,6 +8,12 @@
 - New `live_batch` capability: 1 to 64 edit steps in one native undo step. A failed step undoes the earlier steps.
 - A REAPER session still running the protocol 2 bridge is reported as `bridge_upgrade_required`. Managed startup does not launch a second instance beside it. Restart that REAPER session after upgrading the package.
 - Add `scripts/batch-check.mjs`, a native acceptance check for the new protocol.
+- Transport: `live_transport` plays, stops, pauses, seeks and sets the loop range. `/project/transport` reports state and position. Recording is not controlled.
+- Markers and regions: `live_add_marker`, `live_edit_marker`, `live_delete_marker`, read from `/markers`.
+- Tempo map: `live_set_tempo` and `live_delete_tempo_marker`, read from `/project/tempo_map`.
+- Items: `/tracks/{index}/items` lists audio and MIDI items. `live_insert_audio`, `live_edit_item`, `live_split_item` and `live_delete_item` import, move, trim, fade, split and delete them.
+- Tracks: `live_delete_track`, and `solo` joins the settable track fields.
+- Add `scripts/arrange-check.mjs`, a native acceptance check for these capabilities.
 
 ## 0.1.0-alpha.6
 

@@ -126,7 +126,76 @@ const batchSchema = z.object({
     args: z.unknown(),
   }).strict()).min(1).max(64),
 }).strict();
-export const musicCapabilities = Object.entries({...musicSchemas, live_batch: batchSchema}).map(
+const itemRef = { track, item: editIndex, itemGuid: text };
+const markerRef = { id: z.number().int().min(0).max(2147483647), isRegion: z.boolean().default(false) };
+// Arrangement capabilities: transport, markers and regions, tempo map, items and track removal.
+export const arrangeSchemas = {
+  live_transport: z.object({
+    command: z.enum(["play", "stop", "pause", "seek", "set_loop"]),
+    beat: beat.optional(),
+    enabled: z.boolean().optional(),
+    startBeat: beat.optional(),
+    endBeat: beat.optional(),
+  }).strict().superRefine((a, ctx) => {
+    const fail = (message: string) => ctx.addIssue({ code: "custom", message });
+    const loopFields = a.enabled !== undefined || a.startBeat !== undefined || a.endBeat !== undefined;
+    if (a.command === "seek" ? a.beat === undefined : a.beat !== undefined) fail("beat is required for seek and not allowed otherwise");
+    if (a.command !== "set_loop" && loopFields) fail("Loop fields are only allowed with set_loop");
+    if (a.command === "set_loop") {
+      if ((a.startBeat === undefined) !== (a.endBeat === undefined)) fail("Give both startBeat and endBeat");
+      if (a.startBeat !== undefined && a.endBeat !== undefined && a.endBeat <= a.startBeat) fail("Loop must move forward");
+      if (!loopFields) fail("Nothing to change");
+    }
+  }),
+  live_add_marker: z.object({ name: text.optional(), beat, endBeat: beat.optional() }).strict()
+    .refine(a => a.endBeat === undefined || a.endBeat > a.beat, "Region must move forward"),
+  live_edit_marker: z.object({ ...markerRef, name: text.optional(), beat: beat.optional(), endBeat: beat.optional() }).strict()
+    .refine(a => a.name !== undefined || a.beat !== undefined || a.endBeat !== undefined, "Nothing to change")
+    .refine(a => a.isRegion || a.endBeat === undefined, "A marker has no end; use a region"),
+  live_delete_marker: z.object(markerRef).strict(),
+  live_set_tempo: z.object({
+    beat: beat.default(0),
+    bpm: z.number().min(20).max(300),
+    timeSignature: z.object({
+      numerator: z.number().int().min(1).max(64),
+      denominator: z.union([z.literal(1), z.literal(2), z.literal(4), z.literal(8), z.literal(16), z.literal(32), z.literal(64)]),
+    }).strict().optional(),
+    linear: z.boolean().optional(),
+  }).strict(),
+  live_delete_tempo_marker: z.object({ index: editIndex, bpm: z.number().min(1).max(1000) }).strict(),
+  live_insert_audio: z.object({
+    track, file: z.string().min(1).max(4096).regex(/\.(wav|flac|mp3|ogg|aiff?)$/i, "Supported audio: wav, flac, mp3, ogg, aiff"),
+    startBeat: beat, name: text.optional(),
+  }).strict(),
+  live_edit_item: z.object({
+    ...itemRef,
+    startBeat: beat.optional(),
+    lengthBeats: z.number().finite().positive().max(100000).optional(),
+    mute: z.boolean().optional(),
+    gainDb: z.number().min(-150).max(24).optional(),
+    fadeInSeconds: z.number().min(0).max(3600).optional(),
+    fadeOutSeconds: z.number().min(0).max(3600).optional(),
+    name: text.optional(),
+    toTrack: track.optional(),
+  }).strict().refine(a => Object.keys(a).length > 3, "Nothing to change"),
+  live_split_item: z.object({ ...itemRef, beat }).strict(),
+  live_delete_item: z.object(itemRef).strict(),
+  live_delete_track: z.object({ track, trackGuid: text }).strict(),
+};
+const arrangeDescriptions: Record<keyof typeof arrangeSchemas, string> = {
+  live_transport: "Control playback: play, stop, pause, seek (beat) or set_loop (enabled and/or startBeat with endBeat). Read /project/transport for state. Not a project edit: no undo step and not allowed in live_batch. Refused while REAPER is recording; recording is not controlled by this server.",
+  live_add_marker: "Add a marker at beat, or a region when endBeat is given. Returns its id. Read /markers to list them.",
+  live_edit_marker: "Rename or move a marker or region found by id and isRegion from /markers. Omitted fields are kept.",
+  live_delete_marker: "Delete a marker or region by id and isRegion from /markers.",
+  live_set_tempo: "Set the tempo from a beat onward (default beat 0), optionally with a time signature. Replaces a tempo marker already at that beat, otherwise adds one. linear ramps to the next marker. Read /project/tempo_map first; item positions follow each item's timebase.",
+  live_delete_tempo_marker: "Delete one tempo marker by its index from /project/tempo_map. Supply its current bpm as an identity check.",
+  live_insert_audio: "Place a workspace audio file (wav, flac, mp3, ogg, aiff) on a track at startBeat as a new item at its full length.",
+  live_edit_item: "Edit one MIDI or audio item: startBeat, lengthBeats, mute, gainDb, fades, name, or toTrack to move it. Read /tracks/{track}/items for index and GUID. Item indexes follow timeline order, so list the items again after moving or splitting.",
+  live_split_item: "Split one item at a project beat inside it. Returns both halves.",
+  live_delete_item: "Delete one item, guarded by its GUID.",
+  live_delete_track: "Delete a track with its items, FX and sends. Supply trackGuid from /tracks as an identity check. One undo step restores it.",
+};
+const baseCapabilities = Object.entries({...musicSchemas, live_batch: batchSchema}).map(
   ([name, schema]) => ({
     name,
     schema,
@@ -134,7 +203,7 @@ export const musicCapabilities = Object.entries({...musicSchemas, live_batch: ba
     modes: ["live"],
     description:
       name === "live_batch"
-        ? "Run 1-64 live edit capabilities as one transaction and one native undo step. Each step is {capability, args} using that capability's own schema. If any step fails, the earlier steps are undone and the project is left as read. A new track takes the next free index, so later steps can address it. dryRun validates every step against the current project only, so a step that depends on an earlier one reports an error there. Not allowed: live_batch, live_revert_fx_edit."
+        ? "Run 1-64 live edit capabilities as one transaction and one native undo step. Each step is {capability, args} using that capability's own schema. If any step fails, the earlier steps are undone and the project is left as read. A new track takes the next free index, so later steps can address it. dryRun validates every step against the current project only, so a step that depends on an earlier one reports an error there. Not allowed: live_batch, live_revert_fx_edit, live_transport."
         : name === "live_edit_fx_envelope_point"
         ? "Adjust one existing interior FX automation point. Read the parameter's /envelope first. Preserves its time and adjacent anchors; supports linear/square segments on unscaled 0-1 controls."
         : name === "live_add_send"
@@ -154,6 +223,17 @@ export const musicCapabilities = Object.entries({...musicSchemas, live_batch: ba
           : "Insert a MIDI clip; project start and clip-relative note offsets are quarter-note beats, channels 0-15; at most 2048 notes per clip",
   }),
 );
+export const musicCapabilities = [
+  ...baseCapabilities,
+  ...Object.entries(arrangeSchemas).map(([name, schema]) => ({
+    name,
+    schema: schema as z.ZodType,
+    toolset: "editing",
+    modes: ["live"],
+    description: arrangeDescriptions[name as keyof typeof arrangeSchemas],
+  })),
+];
+const liveSchemas: Record<string, z.ZodType> = { ...musicSchemas, ...arrangeSchemas };
 const entrySchema = z
   .object({
     id: text,
@@ -183,14 +263,20 @@ export async function instruments() {
 async function prepare(
   capability: string,
   raw: unknown,
+  workspace?: Workspace,
 ): Promise<Record<string, unknown>> {
-  const schema = musicSchemas[capability as keyof typeof musicSchemas];
+  const schema = Object.hasOwn(liveSchemas, capability) ? liveSchemas[capability] : undefined;
   if (!schema)
     throw new ToolError(
       "unsupported_live",
       "Unknown live music capability; describe available capabilities",
     );
   const a: any = schema.parse(raw);
+  if (capability === "live_insert_audio") {
+    if (!workspace) throw new ToolError("invalid_path", "Audio import requires a workspace");
+    // The bridge receives an absolute path that has already been confined to the workspace.
+    return { ...a, file: await workspace.resolve(a.file) };
+  }
   if (capability === "live_edit_performance") {
     const entry = a.articulations.length ? (await instruments()).find(e => e.id === a.instrument) : undefined;
     const articulations = a.articulations.map((e: any) => {
@@ -260,15 +346,16 @@ export async function runMusic(
   capability: string,
   raw: unknown,
   dry: boolean,
+  workspace?: Workspace,
 ) {
   if (capability === "live_batch") {
     const { steps } = batchSchema.parse(raw);
     const prepared = [];
     for (const [i, step] of steps.entries()) {
-      if (step.capability === "live_batch" || step.capability === "live_revert_fx_edit")
+      if (["live_batch", "live_revert_fx_edit", "live_transport"].includes(step.capability))
         throw new ToolError("invalid_input", `Step ${i + 1}: ${step.capability} cannot run in a batch`);
       try {
-        prepared.push({ action: step.capability, args: await prepare(step.capability, step.args) });
+        prepared.push({ action: step.capability, args: await prepare(step.capability, step.args, workspace) });
       } catch (error) {
         if (error instanceof ToolError) throw new ToolError(error.code, `Step ${i + 1} (${step.capability}): ${error.message}`);
         if (error instanceof z.ZodError)
@@ -278,7 +365,7 @@ export async function runMusic(
     }
     return bridge.batch(prepared, dry);
   }
-  return bridge.mutate(capability, await prepare(capability, raw), dry);
+  return bridge.mutate(capability, await prepare(capability, raw, workspace), dry);
 }
 export async function liveProject(
   bridge: LiveBridge,

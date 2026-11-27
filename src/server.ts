@@ -244,6 +244,7 @@ export async function call(
           args.capability as string,
           args.args,
           args.dryRun as boolean,
+          service.workspace,
         );
       } else if (name === "reaper_project") {
         value = await liveProject(
@@ -315,6 +316,11 @@ export async function call(
               get: [
                 "/project",
                 "/project/tempo",
+                "/project/tempo_map",
+                "/project/transport",
+                "/markers",
+                "/tracks/{index}/items",
+                "/tracks/{index}/items/{item}",
                 "/tracks",
                 "/tracks/{index}",
                 "/tracks/{index}/sends",
@@ -332,6 +338,7 @@ export async function call(
                 "/tracks/{index}/volume_db",
                 "/tracks/{index}/pan",
                 "/tracks/{index}/mute",
+                "/tracks/{index}/solo",
               ],
             },
           };

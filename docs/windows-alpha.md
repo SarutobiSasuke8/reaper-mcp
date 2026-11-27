@@ -90,6 +90,38 @@ Anywhere a track index is accepted you can pass the track's GUID from `/tracks` 
 
 One call can carry up to 2048 MIDI events and a request up to 1 MB.
 
+## Arrange a live session
+
+Enable the `editing` toolset, read the project, then use `reaper_run`. Positions are quarter-note beats from the project start unless a field says seconds.
+
+| Task | Read first | Capability |
+| --- | --- | --- |
+| Play, stop, pause, seek, loop | `/project/transport` | `live_transport` |
+| Markers and regions | `/markers` | `live_add_marker`, `live_edit_marker`, `live_delete_marker` |
+| Tempo and time signature | `/project/tempo_map` | `live_set_tempo`, `live_delete_tempo_marker` |
+| Import audio | `/tracks` | `live_insert_audio` |
+| Move, trim, mute, gain, fade, rename an item | `/tracks/{index}/items` | `live_edit_item` |
+| Split or delete an item | `/tracks/{index}/items` | `live_split_item`, `live_delete_item` |
+| Solo or delete a track | `/tracks` | `reaper_set` on `/tracks/{index}/solo`, `live_delete_track` |
+
+```json
+{"capability": "live_transport", "args": {"command": "set_loop", "enabled": true, "startBeat": 16, "endBeat": 32}}
+{"capability": "live_add_marker", "args": {"name": "Chorus", "beat": 32, "endBeat": 64}}
+{"capability": "live_insert_audio", "args": {"track": 0, "file": "loops/kick.wav", "startBeat": 16}}
+{"capability": "live_edit_item", "args": {"track": 0, "item": 0, "itemGuid": "{GUID}", "startBeat": 32, "fadeOutSeconds": 0.2}}
+```
+
+Points to know:
+
+- Playback is not a project edit. `live_transport` makes no undo step and cannot be a `live_batch` step. It is refused while REAPER is recording, and this server never starts a recording.
+- REAPER numbers markers and regions separately, so marker 1 and region 1 can both exist. Edits and deletes take both `id` and `isRegion`.
+- A marker name cannot be cleared by an edit. Delete the marker and add it again.
+- `live_set_tempo` replaces a tempo marker that is already at that beat and adds one otherwise. A tempo change moves every later beat in seconds, so read positions again afterwards.
+- Item indexes follow timeline order and change after a move or split. Every item edit also takes the item GUID and is refused if the two no longer match. List the items again after each change.
+- An audio item cannot be made longer than its source unless it is looped.
+- `live_insert_audio` takes a workspace-relative wav, flac, mp3, ogg or aiff file.
+- `live_delete_track` removes the track with its items, FX and sends. One undo step in REAPER restores it.
+
 ## Modes and capabilities
 
 | Mode | Supported now |
@@ -126,7 +158,7 @@ To remove: stop the MCP entry and isolated REAPER instance, remove the client en
 
 ## Still outside this alpha
 
-Instrument replacement, live routing/FX parameter writes, live stems/regions, transport control, general automation, arbitrary complex RPP conversion, Linux verification and cancellation tooling remain outside this alpha. Native MIDI creation, expressive performance insertion, guarded existing-note/keyswitch edits, scoped CC ramps and live mix section renders are included. See `performance-control.md` for source restrictions. No proprietary instruments or sample libraries are bundled.
+Instrument replacement, live routing/FX parameter writes, live stems/regions, recording, take comping, general automation, arbitrary complex RPP conversion, Linux verification and cancellation tooling remain outside this alpha. Native MIDI creation, expressive performance insertion, guarded existing-note/keyswitch edits, scoped CC ramps and live mix section renders are included. See `performance-control.md` for source restrictions. No proprietary instruments or sample libraries are bundled.
 
 ## Codex registration and release checks
 

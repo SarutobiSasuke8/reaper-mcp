@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { arrangeSchemas } from "../src/music.js";
 import { mkdtemp, writeFile, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -206,4 +207,53 @@ test("live_batch prepares every step before one bridge transaction and names the
   await assert.rejects(runMusic(bridge, "live_insert_midi", { track: "{bad}", startBeat: 0, lengthBeats: 4, notes: [{ beat: 0, duration: 1, pitch: 60 }] }, false));
   assert.equal(batches.length, 1);
   assert.equal(musicSchemas.live_insert_midi.parse({ track: 0, startBeat: 0, lengthBeats: 4000, notes: Array.from({ length: 2048 }, (_, i) => ({ beat: i, duration: 0.5, pitch: 60 })) }).notes.length, 2048);
+});
+
+test("arrangement schemas reject incomplete transport, marker, tempo and item edits", () => {
+  const s = arrangeSchemas;
+  for (const ok of [{ command: "play" }, { command: "seek", beat: 8 }, { command: "set_loop", enabled: true }, { command: "set_loop", startBeat: 4, endBeat: 12 }])
+    s.live_transport.parse(ok);
+  for (const bad of [{ command: "seek" }, { command: "play", beat: 1 }, { command: "stop", enabled: true }, { command: "set_loop" }, { command: "set_loop", startBeat: 4 }, { command: "set_loop", startBeat: 8, endBeat: 4 }, { command: "record" }])
+    assert.throws(() => s.live_transport.parse(bad));
+  assert.equal(s.live_add_marker.parse({ beat: 4 }).endBeat, undefined);
+  assert.throws(() => s.live_add_marker.parse({ beat: 4, endBeat: 4 }));
+  assert.equal(s.live_edit_marker.parse({ id: 1, name: "Drop" }).isRegion, false);
+  assert.throws(() => s.live_edit_marker.parse({ id: 1 }));
+  assert.throws(() => s.live_edit_marker.parse({ id: 1, endBeat: 8 }));
+  assert.equal(s.live_set_tempo.parse({ bpm: 128 }).beat, 0);
+  for (const bad of [{ bpm: 10 }, { bpm: 120, timeSignature: { numerator: 4, denominator: 3 } }, { bpm: 120, timeSignature: { numerator: 0, denominator: 4 } }])
+    assert.throws(() => s.live_set_tempo.parse(bad));
+  const item = { track: 0, item: 0, itemGuid: "{g}" };
+  assert.throws(() => s.live_edit_item.parse(item));
+  s.live_edit_item.parse({ ...item, mute: true });
+  assert.throws(() => s.live_edit_item.parse({ ...item, gainDb: 40 }));
+  assert.throws(() => s.live_insert_audio.parse({ track: 0, file: "notes.txt", startBeat: 0 }));
+  assert.throws(() => s.live_delete_track.parse({ track: 0 }));
+});
+test("audio import is confined to the workspace and transport is refused in a batch", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "arrange-"));
+  await writeFile(path.join(root, "kick.wav"), "RIFF");
+  const workspace = await Workspace.open(root);
+  const calls: any[] = [];
+  const bridge = {
+    mutate: async (...args: any[]) => { calls.push(args); return {}; },
+    batch: async (...args: any[]) => { calls.push(args); return {}; },
+  } as unknown as LiveBridge;
+  await runMusic(bridge, "live_insert_audio", { track: 1, file: "kick.wav", startBeat: 4 }, false, workspace);
+  assert.equal(calls[0][0], "live_insert_audio");
+  assert.equal(path.basename(calls[0][1].file), "kick.wav");
+  assert.ok(path.isAbsolute(calls[0][1].file));
+  assert.equal(calls[0][1].startBeat, 4);
+  await assert.rejects(runMusic(bridge, "live_insert_audio", { track: 1, file: "../kick.wav", startBeat: 0 }, false, workspace), /workspace/);
+  await assert.rejects(runMusic(bridge, "live_insert_audio", { track: 1, file: "missing.wav", startBeat: 0 }, false, workspace), /not found/);
+  await assert.rejects(runMusic(bridge, "live_insert_audio", { track: 1, file: "kick.wav", startBeat: 0 }, false), /requires a workspace/);
+  await assert.rejects(runMusic(bridge, "live_batch", { steps: [{ capability: "live_transport", args: { command: "play" } }] }, false, workspace), /cannot run in a batch/);
+  await runMusic(bridge, "live_batch", { steps: [
+    { capability: "live_add_marker", args: { name: "Verse", beat: 16, endBeat: 48 } },
+    { capability: "live_insert_audio", args: { track: 1, file: "kick.wav", startBeat: 16 } },
+  ] }, true, workspace);
+  assert.equal(calls[1][0][0].action, "live_add_marker");
+  assert.ok(path.isAbsolute(calls[1][0][1].args.file));
+  await assert.rejects(runMusic(bridge, "constructor", {}, false, workspace), /Unknown live music capability/);
+  assert.equal(calls.length, 2);
 });

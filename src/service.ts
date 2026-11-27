@@ -32,7 +32,7 @@ export const pathSchema = z
   );
 export { capabilities } from "./editing.js";
 import { capabilities, editSong } from "./editing.js";
-import { auditionCapability } from "./audition.js";
+import { selectAuditionCapability, auditionCapability } from "./audition.js";
 import { autoMixCapability } from "./automix.js";
 import { lintCapability } from "./lint.js";
 import { grooveCapability } from "./groove.js";
@@ -366,7 +366,7 @@ export class ReaperService {
   }
   describe(subject: string): unknown {
     if (subject === "song" || subject === "/project") return songJsonSchema;
-    const cap = [...capabilities, ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability].find(
+    const cap = [...capabilities, ...musicCapabilities, auditionCapability, selectAuditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability].find(
       (c) => c.name === subject,
     );
     if (cap)

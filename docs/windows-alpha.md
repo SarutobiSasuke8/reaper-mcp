@@ -66,6 +66,16 @@ Open the returned `audition.rpp` or play the two returned WAV files. The project
 
 The default target is −18 LUFS. A shared lower target accommodates peaks when necessary. The tool applies constant gain, encodes 16-bit PCM, then measures the listening copies again. It returns paths only if they match within 0.5 LU with at least 1 dB of estimated true-peak headroom. Silence or an incompatible pair produces an error. A dry run reports measurements without creating files. Each applied run gets its own folder. Clips shorter than one 400 ms metering block use an ungated estimate and report `gated: false`.
 
+For aligned full renders, pass `section: { startSeconds: 95, endSeconds: 110 }` inside the audition arguments. The interval starts at the nearest sample frame and excludes the end frame. Each source WAV may be up to 64 MB. The excerpts retain the room tail and instrument state already present at that point in the full render.
+
+To keep the full source behind a listening copy, use the manifest returned by the audition:
+
+```json
+{"capability":"select_audition_render","args":{"manifest":"audition-EXAMPLE/audition.json","choice":"B"}}
+```
+
+The selection checks the original WAV's SHA-256 and copies its exact bytes to a new folder. The audition gain applies only to the previews. Selecting again creates a separate output. This workflow expects the full candidate mix to have already been rendered.
+
 ## Live routing, stems and FX automation
 
 - Read `/tracks` for indices and GUIDs. Run `live_add_send` with `source`, `sourceGuid`, `destination`, `destinationGuid`, `pair` and optional `gainDb`. Use `1/2` for a normal stereo send or `3/4` for a sidechain. Both send post-fader audio with MIDI disabled. Read `/tracks/0/sends` to inspect the result. The receiving plugin must use its auxiliary input.

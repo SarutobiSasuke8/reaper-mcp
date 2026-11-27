@@ -1,3 +1,4 @@
+import { savedProjectBytes } from "./candidate.js";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -14,6 +15,7 @@ export const auditionCapability = {
   description: "Create two loudness-matched listening WAVs and an aligned REAPER A/B project from two aligned workspace renders. Optionally select a passage in seconds. Returns a manifest for select_audition_render; dryRun only measures.",
   schema: z.object({
     a: z.string().min(1).max(4096), b: z.string().min(1).max(4096),
+    projects: z.object({ a: z.string().regex(/\.rpp$/i), b: z.string().regex(/\.rpp$/i) }).strict().optional(),
     section: z.object({
       startSeconds: z.number().finite().nonnegative(),
       endSeconds: z.number().finite().positive(),
@@ -70,6 +72,11 @@ export async function createAudition(workspace: Workspace, args: z.infer<typeof 
   });
   const summary = { targetLufs: target, deltaLu: Math.abs(copies[0]!.report.output.lufs - copies[1]!.report.output.lufs),
     versions: copies.map(copy => copy.report), dryRun };
+  const sources = await Promise.all([a, b].map(async ({file, sha256}, i) => {
+    const project = args.projects?.[i === 0 ? "a" : "b"];
+    if (!project) return { file, sha256 };
+    return { file, sha256, project: { file: project, sha256: digest(await savedProjectBytes(workspace, project)) } };
+  }));
   if (dryRun) return summary;
   const folder = await mkdtemp(path.join(workspace.root, "audition-"));
   const relative = path.basename(folder);
@@ -87,7 +94,7 @@ export async function createAudition(workspace: Workspace, args: z.infer<typeof 
     await writeFile(path.join(folder, "audition.rpp"), project, { flag: "wx" });
     const manifest = {
       version: 1, sampleRate: rate, startFrame, endFrame,
-      sources: [a, b].map(({file, sha256}) => ({file, sha256})),
+      sources,
     };
     await writeFile(path.join(folder, "audition.json"), JSON.stringify(manifest, null, 2), {flag: "wx"});
     return { ...summary, manifest: relative + "/audition.json", files: [relative + "/A.wav", relative + "/B.wav"], project: relative + "/audition.rpp" };
@@ -107,7 +114,8 @@ export const selectAuditionCapability = {
   schema: z.object({ manifest: z.string().min(1).max(4096), choice: z.enum(["A", "B"]) }).strict(),
 };
 
-const sourceSchema = z.object({ file: z.string().min(1).max(4096), sha256: z.string().regex(/^[a-f0-9]{64}$/) });
+const fileFingerprint = z.object({ file: z.string().min(1).max(4096), sha256: z.string().regex(/^[a-f0-9]{64}$/) });
+const sourceSchema = fileFingerprint.extend({ project: fileFingerprint.optional() });
 const manifestSchema = z.object({ version: z.literal(1), sources: z.tuple([sourceSchema, sourceSchema]) });
 
 export async function selectAuditionRender(workspace: Workspace, args: z.infer<typeof selectAuditionCapability.schema>, dryRun: boolean) {
@@ -119,12 +127,16 @@ export async function selectAuditionRender(workspace: Workspace, args: z.infer<t
     throw new ToolError("source_changed", "The selected render changed after auditioning. Create a new audition.");
   // A manifest can also be supplied by the caller. Verify the selected file is a supported WAV.
   decodeWav(bytes);
-  const result = { choice: args.choice, source: source.file, sha256: source.sha256, dryRun };
+  if (source.project && digest(await savedProjectBytes(workspace, source.project.file)) !== source.project.sha256)
+    throw new ToolError("source_changed", "The selected project changed after auditioning. Create a new audition.");
+  const result = { project: source.project, choice: args.choice, source: source.file, sha256: source.sha256, dryRun };
   if (dryRun) return result;
   const folder = await mkdtemp(path.join(workspace.root, "selected-render-"));
   try {
     await writeFile(path.join(folder, "full.wav"), bytes, { flag: "wx" });
-    return { ...result, file: path.basename(folder) + "/full.wav" };
+    const exported = { ...result, manifest: args.manifest, file: path.basename(folder) + "/full.wav" };
+    await writeFile(path.join(folder, "selection.json"), JSON.stringify(exported, null, 2), { flag: "wx" });
+    return { ...exported, receipt: path.basename(folder) + "/selection.json" };
   } catch (err) {
     await rm(folder, { recursive: true, force: true });
     throw err;

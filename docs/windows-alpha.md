@@ -366,7 +366,7 @@ To remove: stop the MCP entry and isolated REAPER instance, remove the client en
 
 ## Still outside this alpha
 
-Instrument replacement, live routing/FX parameter writes, live stems/regions, recording, take comping, general automation, arbitrary complex RPP conversion, Linux verification and cancellation tooling remain outside this alpha. Native MIDI creation, expressive performance insertion, guarded existing-note/keyswitch edits, scoped CC ramps and live mix section renders are included. See `performance-control.md` for source restrictions. No proprietary instruments or sample libraries are bundled.
+See the [v1 support contract](v1-contract.md) for stable and experimental operations, deferred features, bridge diagnosis and release acceptance.
 
 ## Codex registration and release checks
 

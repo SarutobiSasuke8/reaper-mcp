@@ -2,6 +2,7 @@ name: Windows alpha
 on:
   push:
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -19,6 +20,27 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm pack
+      - name: Install the tarball and check public discovery over stdio
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'installed-contract'
+          $tarball = (Get-ChildItem *.tgz -File).FullName
+          npm install --prefix $stage --ignore-scripts $tarball
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node "$stage/node_modules/@sarutobi-sasuke/reaper-mcp/scripts/contract-check.mjs"
+      - name: Upgrade an existing alpha.6 workspace in place
+        if: matrix.node == 22
+        shell: pwsh
+        run: |
+          $prefix = Join-Path $env:RUNNER_TEMP 'upgrade-app'
+          $workspace = Join-Path $env:RUNNER_TEMP 'upgrade-workspace'
+          npm install --prefix $prefix --ignore-scripts '@sarutobi-sasuke/reaper-mcp@0.1.0-alpha.6'
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node scripts/upgrade-check.mjs seed $prefix $workspace
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm install --prefix $prefix --ignore-scripts (Get-ChildItem *.tgz -File).FullName
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node scripts/upgrade-check.mjs verify $prefix $workspace
       - uses: actions/upload-artifact@v4
         with:
           name: windows-alpha-node-${{ matrix.node }}
@@ -26,7 +48,8 @@ jobs:
           if-no-files-found: error
 
   native-workflows:
-    if: github.event_name == 'pull_request'
+    needs: package
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     timeout-minutes: 20
     permissions:
@@ -50,20 +73,31 @@ jobs:
           $binary = Get-Item 'C:/Program Files/REAPER (x64)/reaper.exe'
           if ($binary.VersionInfo.ProductVersion -notlike '7.86*') { throw 'REAPER 7.86 was not installed' }
       - run: npm ci
-      - name: Install the packed server and exercise both native workflows
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-alpha-node-22
+          path: candidate-package
+      - name: Install the tested tarball and verify native workflows
         shell: pwsh
         env:
           REAPER_MCP_RUN_RELEASE_CHECK: 'true'
+          REAPER_MCP_RUN_LIVE_CHECK: 'true'
+          REAPER_MCP_RUN_RENDER: 'true'
         run: |
           $stage = Join-Path $env:RUNNER_TEMP 'reaper-acceptance'
           New-Item -ItemType Directory $stage | Out-Null
-          $tarball = npm pack --silent --pack-destination $stage | Select-Object -Last 1
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          npm install --prefix $stage (Join-Path $stage $tarball)
+          $tarball = (Get-ChildItem candidate-package/*.tgz -File).FullName
+          npm install --prefix $stage --ignore-scripts $tarball
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $check = Join-Path $stage 'node_modules/@sarutobi-sasuke/reaper-mcp/scripts/editing-check.mjs'
           $env:TEMP = $stage
           $env:TMP = $stage
+          foreach ($script in @("alpha-check.mjs", "batch-check.mjs", "lifecycle-check.mjs")) {
+            node (Join-Path (Split-Path $check) $script)
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+          node (Join-Path (Split-Path $check) "windows-release-check.mjs")
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node $check
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node $check --routing

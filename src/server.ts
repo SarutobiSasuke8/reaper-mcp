@@ -1,3 +1,5 @@
+import { candidateCapability, forkSavedProject } from "./candidate.js";
+import { capabilityCatalogue } from "./contract.js";
 import { selectAuditionCapability, selectAuditionRender, auditionCapability, createAudition } from "./audition.js";
 import { autoMixCapability, autoMix } from "./automix.js";
 import { lintCapability, lintArrangement } from "./lint.js";
@@ -13,14 +15,12 @@ import { ToolError } from "./errors.js";
 import { packageVersion } from "./version.js";
 import {
   instruments,
-  musicCapabilities,
   runMusic,
   liveProject,
   renderLive,
 } from "./music.js";
 import {
   ReaperService,
-  capabilities,
   modeSchema,
   pathSchema,
   type Mode,
@@ -230,6 +230,9 @@ export async function call(
     } else if (name === "reaper_run" && args.capability === djAnalyzeCapability.name) {
       if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
       value = await djAnalyze(service.workspace, djAnalyzeCapability.schema.parse(args.args));
+    } else if (name === "reaper_run" && args.capability === candidateCapability.name) {
+      if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
+      value = await forkSavedProject(service.workspace, candidateCapability.schema.parse(args.args), args.dryRun as boolean);
     } else if (name === "reaper_run" && args.capability === auditionCapability.name) {
       if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
       value = await createAudition(service.workspace, auditionCapability.schema.parse(args.args), args.dryRun as boolean);
@@ -326,7 +329,7 @@ export async function call(
             {
               name: "editing",
               enabled: service.enabled.has("editing"),
-              capabilities: [...capabilities, ...musicCapabilities, auditionCapability, selectAuditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability].map(
+              capabilities: capabilityCatalogue.map(
                 (c) => c.name,
               ),
             },
@@ -374,10 +377,7 @@ export async function call(
           };
           break;
         case "reaper_find_capability":
-          value = [
-            ...capabilities.map((c) => ({ ...c, modes: ["offline"] })),
-            ...musicCapabilities, auditionCapability, selectAuditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability,
-          ]
+          value = capabilityCatalogue
             .filter((c) =>
               `${c.name} ${c.description}`
                 .toLowerCase()
@@ -388,6 +388,8 @@ export async function call(
               description: c.description,
               toolset: c.toolset,
               modes: c.modes,
+              maturity: c.maturity,
+              acceptance: c.acceptance,
             }));
           break;
         case "reaper_get":

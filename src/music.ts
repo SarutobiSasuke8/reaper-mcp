@@ -382,7 +382,7 @@ export async function runMusic(
     const { steps } = batchSchema.parse(raw);
     const prepared = [];
     for (const [i, step] of steps.entries()) {
-      if (["live_batch", "live_revert_fx_edit", "live_transport", "live_compose_piece", "live_write_part"].includes(step.capability))
+      if (["live_batch", "live_revert_fx_edit", "live_transport", "live_compose_piece", "live_write_part", "live_auto_mix"].includes(step.capability))
         throw new ToolError("invalid_input", `Step ${i + 1}: ${step.capability} cannot run in a batch`);
       try {
         prepared.push({ action: step.capability, args: await prepare(step.capability, step.args, workspace) });
@@ -438,15 +438,14 @@ export async function liveProject(
     );
   return result;
 }
-export async function renderLive(
+export type RenderJob = { folder: string; project: string; snapshot: any; bounds?: z.infer<typeof sectionSchema>; stem: boolean };
+// Stage 1: a render-ready copy of the live project. This goes through the bridge, so callers run it one at a time.
+export async function snapshotRender(
   bridge: LiveBridge,
   workspace: Workspace,
-  timeout: number,
   section?: z.infer<typeof sectionSchema>,
   stemTrack?: { index: number; guid: string },
-) {
-  const exe = await locateReaper();
-  if (!exe) throw new ToolError("reaper_not_found", "REAPER is not installed");
+): Promise<RenderJob> {
   const folder = await mkdtemp(path.join(workspace.root, "live-render-"));
   const project = path.join(folder, "mix.rpp");
   const bounds = section ? sectionSchema.parse(section) : undefined;
@@ -457,6 +456,14 @@ export async function renderLive(
   );
   if (bounds && (!Number.isFinite(snapshot.startSeconds) || !Number.isFinite(snapshot.endSeconds)))
     throw new ToolError("bridge_upgrade_required", "Section rendering requires the updated bridge; start a fresh managed session");
+  return { folder, project, snapshot, bounds, stem: !!stemTrack };
+}
+// Stage 2: render one snapshot in its own isolated REAPER process. Jobs are independent and may run side by side.
+export async function runRenderJob(job: RenderJob, workspace: Workspace, timeout: number) {
+  const exe = await locateReaper();
+  if (!exe) throw new ToolError("reaper_not_found", "REAPER is not installed");
+  const { folder, project, snapshot, bounds } = job;
+  const stemTrack = job.stem;
   const cfg = path.join(folder, "reaper.ini");
   const vstPaths = process.env.REAPER_MCP_VST_PATHS;
   if (vstPaths && /[\r\n]/.test(vstPaths))
@@ -497,4 +504,14 @@ export async function renderLive(
     section: bounds ?? null,
     snapshot,
   };
+}
+export async function renderLive(
+  bridge: LiveBridge,
+  workspace: Workspace,
+  timeout: number,
+  section?: z.infer<typeof sectionSchema>,
+  stemTrack?: { index: number; guid: string },
+) {
+  if (!(await locateReaper())) throw new ToolError("reaper_not_found", "REAPER is not installed");
+  return runRenderJob(await snapshotRender(bridge, workspace, section, stemTrack), workspace, timeout);
 }

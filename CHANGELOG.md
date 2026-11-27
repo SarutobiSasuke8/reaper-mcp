@@ -19,6 +19,10 @@
 - `/styles`, `/personas` and `/personas/{id}` read the built-in composition library in either mode: 8 styles and 18 film and DJ personas.
 - Vendor the LMMS MCP composer, melody, motif, solo, blueprint, arranger-lint and persona modules byte-for-byte, with their style and persona data.
 - Add `scripts/compose-check.mjs`, a native check that composes, reads back, renders and measures a piece.
+- Auto-mix: `live_auto_mix` renders a stem per track, sets each track's level from a target for its role, moves the whole mix to a loudness target under a true-peak ceiling and confirms the result on a fresh render. One undo step.
+- Live renders are split into a snapshot stage and a render stage, so stems render side by side. `REAPER_MCP_PARALLEL_RENDERS` sets how many at once (1 to 4, default 2).
+- Vendor the LMMS MCP balance planner byte-for-byte.
+- Add `scripts/automix-check.mjs`, a native check that composes, auto-mixes and verifies the loudness.
 
 ## 0.1.0-alpha.6
 

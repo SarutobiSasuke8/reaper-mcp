@@ -108,7 +108,7 @@ One call can carry up to 2048 MIDI events and a request up to 1 MB.
 - `key`, `bpm`, `bars` or `seconds` are optional. The same `seed` always gives the same piece, so change the seed for another take.
 - A role with no instrument still gets its track and notes but makes no sound. The result lists those roles.
 - Drums are written as General MIDI notes: kick 36, snare 38, hat 42, crash 49. Pass `drumMap` for a kit that differs.
-- Tracks start at conservative levels by role so the mix does not clip: lead and bass -10 dB, drums -8 dB, harmony -15 dB, pad -17 dB. Sampled instruments are often quieter than synths, so analyse the render and raise `volume_db` where needed. Set `levels` to false to leave tracks at unity.
+- Tracks start at conservative levels by role so the mix does not clip: lead and bass -10 dB, drums -8 dB, harmony -15 dB, pad -17 dB. Sampled instruments are often quieter than synths, so run `live_auto_mix` afterwards to set the balance and loudness by measurement. Set `levels` to false to leave tracks at unity.
 - `startBar` places the piece later in the project. `setTempo` and `regions` can be turned off.
 - The composer writes 4/4.
 
@@ -129,6 +129,42 @@ One call can carry up to 2048 MIDI events and a request up to 1 MB.
 `low` and `high` bound the register of a pitched part.
 
 The composition code comes from LMMS MCP and is included unchanged. What it gives you is correct, playable material with a form, a motif that returns and parts that fit together. How good it sounds still depends on the instruments, and on listening to the render and adjusting.
+
+## Auto-mix a live session
+
+`live_auto_mix` sets track levels by measuring the audio, then checks its own work.
+
+1. It renders one stem for each unmuted track that has items.
+2. It finds the loudest eight bars and measures each stem there.
+3. It moves each track to a target for its role: lead, bass and drums in front, harmony and pads behind.
+4. It moves all tracks together to reach `targetLufs`, stopping early if the true peak would pass `ceilingDb`.
+5. It applies the new levels as one undo step and renders the mix again to confirm.
+
+```json
+{"capability": "live_auto_mix", "args": {"targetLufs": -16, "ceilingDb": -1}}
+{"capability": "live_auto_mix", "args": {"targetLufs": -14, "roles": {"3": "lead", "5": "pad"}}}
+{"capability": "live_auto_mix", "args": {"targetLufs": -18, "balance": false}}
+```
+
+| Role | Measured as | Target in the loudest bars |
+| --- | --- | --- |
+| drums | peak | -8 dBFS |
+| lead | RMS while sounding | -17 dBFS |
+| bass | RMS while sounding | -18 dBFS |
+| counter | RMS while sounding | -22 dBFS |
+| harmony | RMS while sounding | -22.5 dBFS |
+| fx | RMS while sounding | -24 dBFS |
+| pad | RMS while sounding | -26 dBFS |
+
+- Roles are guessed from track names such as Lead, Bass, Drums, Pad, Keys or Strings. A track with no recognisable name is judged by how its stem sounds. Pass `roles` as `{"<track index>": role}` to correct a guess; the result shows each role and where it came from.
+- `balance: false` keeps the balance you have and only sets the overall loudness.
+- `dryRun` renders and measures and returns the plan, and leaves every fader where it is.
+- No limiter or compressor is added. If the peaks are too high to reach the loudness target, the mix stops where the true peak meets the ceiling, and `limitedBy` and `note` say so.
+- The result gives the predicted loudness from the stems and the loudness measured on the confirming render. They should agree within about 1 LU. A larger gap means something in the project reacts to level, such as a compressor on the master.
+- Solo must be off. Muted tracks are left out.
+- Up to 12 tracks at a time; pass `tracks` to choose which.
+- Each stem is its own render, so allow about a minute per track on a cold start. Five tracks took about 110 seconds here with two renders at a time. Set `REAPER_MCP_PARALLEL_RENDERS` from 1 to 4 to match your memory; sampled instruments load once per render.
+- The persona you composed with reports its own `mixTargets`; pass that loudness as `targetLufs`.
 
 ## Arrange a live session
 

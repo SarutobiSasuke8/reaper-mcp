@@ -85,7 +85,7 @@ export const composeSchemas = {
 };
 export const composeDescriptions: Record<keyof typeof composeSchemas, string> = {
   live_compose_piece:
-    "Compose a complete piece and place it in the live project as one undo step: new tracks for lead, harmony, pad, bass and one drum track, with MIDI clips, starting levels and panning, a tempo marker and a region per section. Choose a style (read /styles) or a persona (read /personas); key, bpm, bars or seconds and seed are optional, and the same seed gives the same piece. Pass instruments as catalogue IDs per role (read /instruments), for example {\"lead\":\"piano\",\"bass\":\"bass\",\"drums\":\"drums\"}; a role without one gets a track with MIDI and no sound. The piece is 4/4. Tracks start at conservative levels by role so the mix has headroom; set levels to false to leave them at unity. Returns the form, chords, a melody score and structure warnings. Render and analyse to hear it, then adjust track volume_db if the analysis shows clipping or a quiet mix. dryRun returns the plan and changes nothing.",
+    "Compose a complete piece and place it in the live project as one undo step: new tracks for lead, harmony, pad, bass and one drum track, with MIDI clips, starting levels and panning, a tempo marker and a region per section. Choose a style (read /styles) or a persona (read /personas); key, bpm, bars or seconds and seed are optional, and the same seed gives the same piece. Pass instruments as catalogue IDs per role (read /instruments), for example {\"lead\":\"piano\",\"bass\":\"bass\",\"drums\":\"drums\"}; a role without one gets a track with MIDI and no sound. The piece is 4/4. Tracks start at conservative levels by role so the mix has headroom; set levels to false to leave them at unity. Returns the form, chords, a melody score and structure warnings. Run live_auto_mix afterwards to set the balance and loudness by measurement. dryRun returns the plan and changes nothing.",
   live_write_part:
     "Write one part over a chord progression onto an existing track: melody, accompaniment, bass or drums. chords is one chord symbol per bar, for example [\"Dm\",\"Bb\",\"F\",\"C\"]. A melody needs key. style is optional: melody lyrical, driving or swing; accompaniment arpeggio, flowing, broken, block, held, skank or bubble; bass roots, pulse, octaves, walking, syncopated, reggae, sub or wobble; drums rock, four, halftime, ballad, onedrop, rockers, steppers, dubstep, chip or swing. low and high bound the register. The same seed gives the same part.",
 };
@@ -220,7 +220,7 @@ export function buildPiece(a: z.infer<typeof composeSchemas.live_compose_piece>,
       personaWarnings: piece.personaWarnings ?? [],
       next: silent.length
         ? "Some tracks have no instrument and will be silent; read /instruments and insert one with live_insert_instrument, then render and analyse"
-        : "Render with reaper_render and check the result with reaper_analyze",
+        : "Run live_auto_mix to set balance and loudness by measurement, then render and listen",
     },
   };
 }

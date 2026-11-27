@@ -3,6 +3,19 @@
 Assessment: 16 November 2026. Owner: Alexei Udall. Implementation: Codex.
 Current delivery: [draft PR #1](https://github.com/SarutobiSasuke8/reaper-mcp/pull/1).
 
+## Production workflow priorities, 26 November 2026
+
+Use an existing session and bundled plugins as the common benchmark. Score each workflow on completion, incorrect edits, recovery, elapsed time and agent calls. Keep the project, renders and version information together so another operator can reproduce the comparison. TwelveTake documents named undo steps and multi-step production tools. ReaMCP documents FX chains, automation and sends. These are benchmarks from their documentation. A comparative ranking still requires equivalent runs. [TwelveTake](https://github.com/TwelveTake-Studios/reaper-mcp) · [ReaMCP](https://github.com/danielkinahan/ReaMCP)
+
+| Order | Producer task | Acceptance evidence |
+| --- | --- | --- |
+| 1. Adjust a plugin and hear the result | Discover controls, preview one edit, apply it to the intended instance and render the same passage twice. Implemented on this branch through the existing MCP tools. | Bundled ReaSynth fixture tests paged reads, unchanged preview, rejected identity and range errors, actual readback and a measured change in the rendered passage. |
+| 2. Audition two versions and keep one | Guarded one-step FX revert is implemented on this branch. Add loudness-matched listening copies for choosing between renders. | Original renders survive. Listening copies match within 0.5 LU on a non-silent fixture. Reject revert after an intervening user edit. |
+| 3. Mix across tracks | Add live sends, sidechains and native stem renders, followed by scoped FX automation. | A kick ducks a bass track only during the selected bars. Verify routing, render timing, effect on the bass stem and preservation of unrelated automation. |
+| 4. Reproduce the result from a clean install | Give the same brief and project to each server on a second Windows machine. Record versions, cold-start time, interventions, task success and wrong edits. | Publish the fixture and results, including timeouts and recovery after a bridge restart. Add other platforms as they pass this suite. |
+
+On Windows with REAPER 7.86 and Node 22.22.1, the packed-build check changed ReaSynth attack to 0.5 normalised. RMS on the same 1.25-second passage moved from -33.98 to -58.68 dBFS. The native undo test restored the control and rejected a reused token. This fixture measures a change in output. Listening preference and performance on other machines still need evaluation.
+
 ## What parity means
 
 Practical parity means an agent can inspect a real session, compose and edit MIDI/audio, route tracks, control FX and automation, render, measure the result and undo its changes reliably. It does not mean copying every advertised tool name. Keep 12Ã¢â‚¬â€œ15 top-level tools, progressive discovery and explicit live/offline capability support.

@@ -167,6 +167,13 @@ export const arrangeSchemas = {
   live_insert_audio: z.object({
     track, file: z.string().min(1).max(4096).regex(/\.(wav|flac|mp3|ogg|aiff?)$/i, "Supported audio: wav, flac, mp3, ogg, aiff"),
     startBeat: beat, name: text.optional(),
+    playRate: z.number().min(0.25).max(4).optional(),
+    preservePitch: z.boolean().optional(),
+    offsetSeconds: z.number().min(0).max(86400).optional(),
+    lengthSeconds: z.number().positive().max(86400).optional(),
+    fadeInSeconds: z.number().min(0).max(3600).optional(),
+    fadeOutSeconds: z.number().min(0).max(3600).optional(),
+    gainDb: z.number().min(-150).max(24).optional(),
   }).strict(),
   live_edit_item: z.object({
     ...itemRef,
@@ -190,7 +197,7 @@ const arrangeDescriptions: Record<keyof typeof arrangeSchemas, string> = {
   live_delete_marker: "Delete a marker or region by id and isRegion from /markers.",
   live_set_tempo: "Set the tempo from a beat onward (default beat 0), optionally with a time signature. Replaces a tempo marker already at that beat, otherwise adds one. linear ramps to the next marker. Read /project/tempo_map first; item positions follow each item's timebase.",
   live_delete_tempo_marker: "Delete one tempo marker by its index from /project/tempo_map. Supply its current bpm as an identity check.",
-  live_insert_audio: "Place a workspace audio file (wav, flac, mp3, ogg, aiff) on a track at startBeat as a new item at its full length.",
+  live_insert_audio: "Place a workspace audio file (wav, flac, mp3, ogg, aiff) on a track at startBeat as a new item. By default it plays whole at its own speed. Optional: playRate (1.05 is 5% faster) with preservePitch (default true), offsetSeconds to start inside the file, lengthSeconds of project time, fadeInSeconds, fadeOutSeconds and gainDb.",
   live_edit_item: "Edit one MIDI or audio item: startBeat, lengthBeats, mute, gainDb, fades, name, or toTrack to move it. Read /tracks/{track}/items for index and GUID. Item indexes follow timeline order, so list the items again after moving or splitting.",
   live_split_item: "Split one item at a project beat inside it. Returns both halves.",
   live_delete_item: "Delete one item, guarded by its GUID.",
@@ -382,7 +389,7 @@ export async function runMusic(
     const { steps } = batchSchema.parse(raw);
     const prepared = [];
     for (const [i, step] of steps.entries()) {
-      if (["live_batch", "live_revert_fx_edit", "live_transport", "live_compose_piece", "live_write_part", "live_auto_mix"].includes(step.capability))
+      if (["live_batch", "live_revert_fx_edit", "live_transport", "live_compose_piece", "live_write_part", "live_auto_mix", "live_build_dj_set", "dj_analyze_tracks"].includes(step.capability))
         throw new ToolError("invalid_input", `Step ${i + 1}: ${step.capability} cannot run in a batch`);
       try {
         prepared.push({ action: step.capability, args: await prepare(step.capability, step.args, workspace) });

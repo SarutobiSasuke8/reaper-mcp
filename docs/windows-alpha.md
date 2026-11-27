@@ -166,6 +166,52 @@ The composition code comes from LMMS MCP and is included unchanged. What it give
 - Each stem is its own render, so allow about a minute per track on a cold start. Five tracks took about 110 seconds here with two renders at a time. Set `REAPER_MCP_PARALLEL_RENDERS` from 1 to 4 to match your memory; sampled instruments load once per render.
 - The persona you composed with reports its own `mixTargets`; pass that loudness as `targetLufs`.
 
+## Build a DJ set
+
+Put WAV tracks in the workspace, then:
+
+1. `dj_analyze_tracks` to see what you have. This needs no running REAPER.
+2. `live_build_dj_set` with `dryRun` to read the plan and its warnings.
+3. `live_build_dj_set` to build it, then `reaper_render`.
+
+```json
+{"capability": "dj_analyze_tracks", "args": {"files": ["set/one.wav", "set/two.wav", "set/three.wav"]}}
+{"capability": "live_build_dj_set", "args": {"files": ["set/one.wav", "set/two.wav", "set/three.wav"],
+  "transitionBars": 16, "order": "harmonic", "tempo": "median"}}
+```
+
+For each track the analysis gives:
+
+| Field | Meaning |
+| --- | --- |
+| `bpm`, `tempoConfidence` | Tempo to 0.01 BPM and how sharply the beats line up |
+| `beatOffsetSeconds`, `downbeatOffsetSeconds` | Where the first beat and the first bar line fall in the file |
+| `key`, `camelot`, `keyConfidence` | Estimated key and its Camelot wheel code |
+| `integratedLufs`, `truePeakDbfs` | Loudness and peak |
+| `barEnergyDb`, `drops` | Level of every bar, and the bars where it jumps at least 6 dB to near the track's loudest |
+
+What the build does:
+
+- **Order.** `harmonic` keeps your first track first, then picks each next track by the smallest Camelot move and tempo change. `bpm` sorts by tempo. `given` keeps your order.
+- **Tempo.** Every track is stretched to one set tempo with its pitch kept. `tempo` is `median`, `first` or a number. A track near half or double the set tempo is matched in that relation.
+- **Decks.** Tracks alternate on two new tracks, Deck A and Deck B, with every bar line on the project grid.
+- **Transitions.** Each pair overlaps for `transitionBars` (4 to 64, in fours) with a fade out and a fade in. A short track shortens its transition and the plan says so.
+- **Drops.** With `alignDrops`, the incoming track starts far enough into itself that its first drop lands on the bar where the transition ends.
+- **Loudness.** With `matchLoudness`, each item's gain brings the track to `loudnessLufs` (default -16).
+- **Markers.** A region per track and a marker at the start of each transition, named with the key move.
+- `maxBarsPerTrack` shortens every track for a quicker set. `startBar` places the set later in the project.
+
+Read the warnings before you build. They name key clashes, tempo changes over 8%, uncertain beat grids, guessed bar lines and low-confidence keys.
+
+Limits to know:
+
+- WAV files only, up to 250 MB each and 20 tracks a set.
+- The set has one steady tempo. The project must have no tempo changes after the set's start.
+- The grid assumes a steady tempo and 4/4 inside each track. Live recordings and tracks with tempo changes will drift.
+- Key detection is an estimate and can land a fifth away, which on the Camelot wheel is the neighbouring code. Trust `keyConfidence` and your ears.
+- Transitions are level crossfades. There is no EQ or filter work yet, so two full bass lines play together during the overlap.
+- After building, run `live_auto_mix` with `balance` false to set the final loudness.
+
 ## Arrange a live session
 
 Enable the `editing` toolset, read the project, then use `reaper_run`. Positions are quarter-note beats from the project start unless a field says seconds.

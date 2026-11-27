@@ -33,6 +33,8 @@
     "scripts/arrange-check.mjs",
     "scripts/compose-check.mjs",
     "scripts/automix-check.mjs",
+    "scripts/dj-check.mjs",
+    "scripts/dj-fixture.mjs",
     "scripts/music-check.mjs",
     "scripts/performance-check.mjs",
     "scripts/windows-release-check.mjs",

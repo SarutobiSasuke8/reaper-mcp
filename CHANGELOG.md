@@ -23,6 +23,10 @@
 - Live renders are split into a snapshot stage and a render stage, so stems render side by side. `REAPER_MCP_PARALLEL_RENDERS` sets how many at once (1 to 4, default 2).
 - Vendor the LMMS MCP balance planner byte-for-byte.
 - Add `scripts/automix-check.mjs`, a native check that composes, auto-mixes and verifies the loudness.
+- DJ: `dj_analyze_tracks` reports tempo to 0.01 BPM, first beat and bar line, key with its Camelot code, loudness, energy per bar and drops for workspace WAV tracks. Works offline; results are cached.
+- DJ: `live_build_dj_set` builds a beatmatched set on two decks as one undo step: harmonic, tempo or given order, one set tempo with pitch kept, bar-aligned crossfades, incoming drops landed on the transition end, loudness-matched items, a region per track and a marker per transition.
+- `live_insert_audio` takes `playRate`, `preservePitch`, `offsetSeconds`, `lengthSeconds`, `fadeInSeconds`, `fadeOutSeconds` and `gainDb`. Item views report `playRate` and `preservePitch`.
+- Add `scripts/dj-check.mjs`, a native check that builds and renders a set and measures beat alignment through each transition.
 
 ## 0.1.0-alpha.6
 

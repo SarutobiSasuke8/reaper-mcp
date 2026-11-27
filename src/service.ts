@@ -34,6 +34,7 @@ export { capabilities } from "./editing.js";
 import { capabilities, editSong } from "./editing.js";
 import { auditionCapability } from "./audition.js";
 import { autoMixCapability } from "./automix.js";
+import { djAnalyzeCapability, djBuildCapability } from "./dj.js";
 import { musicCapabilities } from "./music.js";
 import { bridgeState } from "./startup.js";
 
@@ -351,6 +352,7 @@ export class ReaperService {
         "multi-step batches as one undo step",
         "composition: whole pieces by style or persona, and single parts over a chord progression",
         "auto-mix: stem-measured role balance and loudness target with a verifying render",
+        "DJ: track analysis (tempo, key, drops) and beatmatched, harmonically ordered sets on two decks",
         "native track, catalogue instrument and beat-based MIDI insertion",
         "native project new/open/save, mix and selected-track stem renders",
         "stereo sends, sidechain routing and matched A/B audition projects",
@@ -361,7 +363,7 @@ export class ReaperService {
   }
   describe(subject: string): unknown {
     if (subject === "song" || subject === "/project") return songJsonSchema;
-    const cap = [...capabilities, ...musicCapabilities, auditionCapability, autoMixCapability].find(
+    const cap = [...capabilities, ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability].find(
       (c) => c.name === subject,
     );
     if (cap)

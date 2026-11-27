@@ -180,6 +180,8 @@ local function item_detail(p,it)
         view.file=reaper.GetMediaSourceFileName(source,'')
         view.sourceLengthSeconds=reaper.GetMediaSourceLength(source)
         view.sourceOffsetSeconds=reaper.GetMediaItemTakeInfo_Value(take,'D_STARTOFFS')
+        view.playRate=reaper.GetMediaItemTakeInfo_Value(take,'D_PLAYRATE')
+        view.preservePitch=reaper.GetMediaItemTakeInfo_Value(take,'B_PPITCH')~=0
       end
     end
   end
@@ -867,11 +869,26 @@ define("live_insert_audio",{undo=true,batch=true},function(p,a,result)
   local f=assert(io.open(file,"rb"),"Audio file missing");f:close()
   local position=reaper.TimeMap2_QNToTime(p,num(a.startBeat,0,100000))
   local name=a.name~=nil and text(a.name,"Invalid item name",200) or nil
+  -- Optional placement for beatmatching: play rate with pitch kept, a source start offset and an explicit length.
+  local rate=a.playRate~=nil and num(a.playRate,0.25,4) or 1
+  assert(a.preservePitch==nil or type(a.preservePitch)=="boolean","Invalid preservePitch")
+  local offset=a.offsetSeconds~=nil and num(a.offsetSeconds,0,86400) or 0
+  local wanted=a.lengthSeconds~=nil and num(a.lengthSeconds,0.001,86400) or nil
+  local fade_in=a.fadeInSeconds~=nil and num(a.fadeInSeconds,0,3600) or nil
+  local fade_out=a.fadeOutSeconds~=nil and num(a.fadeOutSeconds,0,3600) or nil
+  local gain=a.gainDb~=nil and 10^(num(a.gainDb,-150,24)/20) or nil
   assert(reaper.CountTrackMediaItems(t)<10000,"Item limit")
   return function()
     local source=assert(reaper.PCM_Source_CreateFromFile(file),"REAPER could not open the audio file")
-    local length,is_beats=reaper.GetMediaSourceLength(source)
-    if not (length>0 and not is_beats) then reaper.PCM_Source_Destroy(source);error("Not a readable audio file",0) end
+    local source_length,is_beats=reaper.GetMediaSourceLength(source)
+    if not (source_length>0 and not is_beats) then reaper.PCM_Source_Destroy(source);error("Not a readable audio file",0) end
+    if offset>=source_length then reaper.PCM_Source_Destroy(source);error("offsetSeconds is beyond the end of the audio",0) end
+    -- Item length is project time; the source is consumed at the play rate.
+    local available=(source_length-offset)/rate
+    local length=wanted or available
+    if length>available+0.01 then reaper.PCM_Source_Destroy(source);error("lengthSeconds runs past the end of the audio at this play rate",0) end
+    length=math.min(length,available)
+    if (fade_in or 0)+(fade_out or 0)>length+0.000001 then reaper.PCM_Source_Destroy(source);error("Fades exceed the item length",0) end
     local item=reaper.AddMediaItemToTrack(t)
     local ok,err=pcall(function()
       local take=assert(reaper.AddTakeToMediaItem(item),"Take creation failed")
@@ -879,6 +896,12 @@ define("live_insert_audio",{undo=true,batch=true},function(p,a,result)
       reaper.SetMediaItemInfo_Value(item,'D_POSITION',position)
       reaper.SetMediaItemInfo_Value(item,'D_LENGTH',length)
       reaper.SetMediaItemInfo_Value(item,'B_LOOPSRC',0)
+      reaper.SetMediaItemTakeInfo_Value(take,'D_STARTOFFS',offset)
+      reaper.SetMediaItemTakeInfo_Value(take,'D_PLAYRATE',rate)
+      reaper.SetMediaItemTakeInfo_Value(take,'B_PPITCH',a.preservePitch==false and 0 or 1)
+      if fade_in then reaper.SetMediaItemInfo_Value(item,'D_FADEINLEN',fade_in) end
+      if fade_out then reaper.SetMediaItemInfo_Value(item,'D_FADEOUTLEN',fade_out) end
+      if gain then reaper.SetMediaItemInfo_Value(item,'D_VOL',gain) end
       if name then reaper.GetSetMediaItemTakeInfo_String(take,'P_NAME',name,true) end
       reaper.UpdateItemInProject(item)
     end)
@@ -896,7 +919,7 @@ define("live_edit_item",{undo=true,batch=true},function(p,a,result)
   local length=reaper.TimeMap2_QNToTime(p,start_beat+length_beats)-position
   local retime=a.startBeat~=nil or a.lengthBeats~=nil
   if a.lengthBeats~=nil and view.sourceLengthSeconds and not view.looped then
-    assert(length<=view.sourceLengthSeconds-view.sourceOffsetSeconds+0.000001,"Length exceeds the audio source; the item is not looped")
+    assert(length*(view.playRate or 1)<=view.sourceLengthSeconds-view.sourceOffsetSeconds+0.000001,"Length exceeds the audio source; the item is not looped")
   end
   assert(a.mute==nil or type(a.mute)=="boolean","Invalid mute")
   local gain=a.gainDb~=nil and 10^(num(a.gainDb,-150,24)/20) or nil

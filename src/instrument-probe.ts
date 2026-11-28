@@ -2,7 +2,6 @@ import { nativeObservation } from "./native-observation.js";
 import { randomUUID } from "node:crypto";
 import {
   mkdtemp,
-  readFile,
   writeFile,
   rename,
   stat,

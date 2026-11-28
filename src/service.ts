@@ -316,16 +316,23 @@ export class ReaperService {
     this.song = songSchema.parse(candidate);
     return { track, item };
   }
-  async analyze(file: string, referencePath?: string): Promise<unknown> {
-    const audio = decodeWav(await this.workspace.read(file, 100_000_000));
-    if (referencePath === undefined) return analyze(audio);
+  async analyze(file: string, referencePath?: string, section?: {startSeconds:number;endSeconds:number}): Promise<unknown> {
+    const load = async (name:string) => {
+      const audio = decodeWav(await this.workspace.read(name, 100_000_000));
+      if (!section) return audio;
+      const first=Math.round(section.startSeconds*audio.sampleRate);
+      const end=Math.round(section.endSeconds*audio.sampleRate);
+      if(first>=end || end>audio.frames)throw new ToolError("invalid_section","Choose a non-empty interval inside the WAV");
+      return {...audio,frames:end-first,channels:audio.channels.map((ch:Float32Array)=>ch.subarray(first,end))};
+    };
+    const audio=await load(file);
     let reference;
-    try {
-      reference = decodeWav(await this.workspace.read(referencePath, 100_000_000));
-    } catch (error) {
-      throw new ToolError("invalid_reference", `Cannot read reference WAV: ${(error as Error).message}`);
+    if(referencePath!==undefined){
+      try {reference=await load(referencePath);}
+      catch(error){throw new ToolError("invalid_reference", `Cannot read reference WAV: ${(error as Error).message}`);}
     }
-    return analyze(audio, { reference });
+    const report=analyze(audio,{reference});
+    return section?{...report,section}:report;
   }
   async render(
     target: "mix" | "stems" | "regions",

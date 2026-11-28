@@ -35,6 +35,8 @@ The experimental `live_add_gain_ride` appends the bundled Volume/Pan Adjustment 
 
 ## Release evidence
 
+The read-only `reaper_analyze` accepts a section in seconds. It measures loudness, peaks, clipping, spectrum and stereo image on that interval. If a reference WAV is supplied, the same time window applies to both files. Both must contain the full interval.
+
 ### Recoverable mix renders
 
 Enable editing, read the live project and call `start_render_job` with an optional beat section and timeout. It captures a full native snapshot before returning the job ID. Use `reaper_get` on its statusPath, or list `/render_jobs` after a disconnect. Use offline mode for these reads when the bridge is down. States include queued, rendering, cancelling, cancelled, interrupted, failed and completed. Only completed attempts return a delivery path. Each attempt checks the complete PCM WAV structure, channel layout, sample rate and duration before publishing it. The current job format is stereo 24-bit PCM RIFF at 44.1 kHz.

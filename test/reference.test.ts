@@ -96,6 +96,13 @@ test('reaper_analyze referencePath: valid, missing/corrupt, traversal and omitte
       const run = referencePath => call(svc, 'reaper_analyze', { mode, file: 'mix.wav', ...(referencePath === undefined ? {} : { referencePath }) });
       const good = await run('mix.wav'); assert.ok(!good.isError, JSON.stringify(good));
       assert.equal(good.structuredContent.result.referenceMatch.gainDb, 0);
+      const section={startSeconds:.1,endSeconds:.8};
+      const part=await call(svc,'reaper_analyze',{mode,file:'mix.wav',referencePath:'mix.wav',section});
+      assert.ok(!part.isError,JSON.stringify(part));
+      assert.equal(part.structuredContent.result.durationSeconds,.7);
+      assert.deepEqual(part.structuredContent.result.section,section);
+      assert.equal(part.structuredContent.result.referenceMatch.gainDb,0);
+      assert.ok((await call(svc,'reaper_analyze',{mode,file:'mix.wav',section:{startSeconds:0,endSeconds:999}})).isError);
       for (const ref of ['missing.wav', 'broken.wav', '../mix.wav', path.join(root, 'mix.wav')]) {
         const bad = await run(ref); assert.equal(bad.isError, true); assert.match(JSON.stringify(bad), /Cannot read reference WAV/);
       }

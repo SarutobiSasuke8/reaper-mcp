@@ -1,13 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import {
-  mkdir,
-  readFile,
-  readdir,
-  rename,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
@@ -45,6 +38,7 @@ export const controlJobCapability = {
     .strict(),
 };
 export const inputSchema = z.object({
+  afterJob: z.string().uuid().optional(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   project: z.string(),
   revision: z.number(),
@@ -61,11 +55,11 @@ export async function saveState(folder: string, name: string, value: unknown) {
   await writeFile(temp, JSON.stringify(value), { flag: "wx" });
   await rename(temp, path.join(folder, name + ".json"));
 }
-async function readOptional(file: string) {
+async function readOptional(workspace: Workspace, file: string) {
   try {
-    return JSON.parse(await readFile(file, "utf8"));
+    return JSON.parse((await workspace.read(file, 64_000)).toString());
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    if (e instanceof ToolError && e.code === "not_found") return undefined;
     throw e;
   }
 }
@@ -117,6 +111,7 @@ export async function startRenderJob(
   ws: Workspace,
   args: z.infer<typeof startJobCapability.schema>,
   dry: boolean,
+  afterJob?: string,
 ) {
   if (dry)
     return {
@@ -137,6 +132,7 @@ export async function startRenderJob(
   );
   const input = inputSchema.parse({
     ...snapshot,
+    afterJob,
     sha256: digest(await ws.read(dir + "/mix.rpp", 64_000_000)),
   });
   await saveState(folder, "input", input);
@@ -155,7 +151,8 @@ export async function jobStatus(ws: Workspace, jobId: string) {
   const base = { jobId, attempt, source: input };
   if (!attempt) return { ...base, state: "interrupted" };
   const current = await ws.resolve(dir + "/attempt-" + attempt);
-  const result = await readOptional(path.join(current, "result.json"));
+  const relativeAttempt = dir + "/attempt-" + attempt;
+  const result = await readOptional(ws, relativeAttempt + "/result.json");
   if (result?.state === "completed") {
     const file = dir + "/attempt-" + attempt + "/verified.wav";
     const size = await ws
@@ -175,12 +172,22 @@ export async function jobStatus(ws: Workspace, jobId: string) {
     return {
       ...base,
       state: "completed",
-      files: [file],
+      files: [file] as [string],
       measurement: result.measurement,
     };
   }
-  if (result) return { ...base, ...result };
-  const owner = await readOptional(path.join(current, "worker.json"));
+  if (result)
+    return {
+      ...base,
+      ...z
+        .object({
+          state: z.enum(["failed", "cancelled"]),
+          code: z.string().optional(),
+          error: z.string(),
+        })
+        .parse(result),
+    };
+  const owner = await readOptional(ws, relativeAttempt + "/worker.json");
   const interrupted = owner
     ? !alive(owner.pid) || Date.now() > owner.deadline + 30000
     : Date.now() - (await stat(current)).birthtimeMs > 30000;
@@ -195,7 +202,7 @@ export async function jobStatus(ws: Workspace, jobId: string) {
       : cancelled
         ? "cancelling"
         : owner
-          ? "rendering"
+          ? (owner.stage ?? "rendering")
           : "queued",
   };
 }
@@ -240,7 +247,10 @@ export async function controlRenderJob(
       ? current
       : launch(ws, args.jobId, args.attempt + 1, args.timeoutMs);
   }
-  if (!dry && ["queued", "rendering", "cancelling"].includes(current.state)) {
+  if (
+    !dry &&
+    ["queued", "waiting", "rendering", "cancelling"].includes(current.state)
+  ) {
     const file = await ws.resolve(
       jobDirectory(args.jobId) + "/attempt-" + args.attempt + "/cancel",
       true,

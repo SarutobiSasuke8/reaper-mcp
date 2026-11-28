@@ -17,11 +17,19 @@ import { arrangeSchemas, liveProject, runMusic } from "./music.js";
 import { liveIni } from "./profile.js";
 import { locateReaper } from "./render.js";
 import { digest, jobStatus, saveState, startRenderJob } from "./render-job.js";
+import { alive } from "./startup.js";
 import { Workspace } from "./workspace.js";
 
 const waitMs = z.number().int().min(0).max(600000).default(120000);
 const start = candidateCapability.schema.extend({
-  ride: arrangeSchemas.live_add_gain_ride,
+  ride: arrangeSchemas.live_add_gain_ride.safeExtend({
+    track: z
+      .string()
+      .min(1)
+      .max(200)
+      .regex(/^[^\r\n\0]+$/)
+      .describe("Track GUID or unique exact saved track name"),
+  }),
   section: auditionCapability.schema.shape.section,
   waitMs,
 });
@@ -50,7 +58,14 @@ const receipt = z.object({
 });
 async function finish(ws: Workspace, file: string, wait: number, dry: boolean) {
   const data = JSON.parse((await ws.read(file, 128000)).toString());
-  if (data.phase !== "rendering") return { workflow: file, ...data };
+  if (data.phase !== "rendering") {
+    const interrupted = data.phase === "preparing" && !alive(data.ownerPid);
+    return {
+      ...data,
+      workflow: file,
+      phase: interrupted ? "interrupted" : data.phase,
+    };
+  }
   const pair = receipt.parse(data),
     deadline = Date.now() + wait;
   while (true) {
@@ -58,7 +73,7 @@ async function finish(ws: Workspace, file: string, wait: number, dry: boolean) {
       jobStatus(ws, pair.a),
       jobStatus(ws, pair.b),
     ]);
-    if (a.state === "completed" && b.state === "completed") {
+    if ("files" in a && "files" in b) {
       async function validate() {
         for (const [name, sha] of [
           [pair.source, pair.sourceSha256],
@@ -151,7 +166,12 @@ export async function auditionRide(
     );
   await ws.writeNew(
     workflow,
-    JSON.stringify({ phase: "preparing", source, candidate }),
+    JSON.stringify({
+      phase: "preparing",
+      source,
+      candidate,
+      ownerPid: process.pid,
+    }),
   );
   const update = (data: unknown) =>
     saveState(
@@ -211,11 +231,24 @@ export async function auditionRide(
           );
         await delay(200);
       }
-      await bridge.get("/project");
+      const tracks = z
+        .array(z.object({ guid: z.string(), name: z.string() }))
+        .parse(await bridge.get("/tracks"));
+      const matches = tracks.filter(
+        (t) =>
+          t.guid.toUpperCase() === args.ride.track.toUpperCase() ||
+          t.name === args.ride.track,
+      );
+      if (matches.length !== 1)
+        throw new ToolError(
+          "track_identity",
+          "Supply a track GUID or a unique exact saved track name",
+        );
+      const ride = { ...args.ride, track: matches[0]!.guid };
       const preview = await runMusic(
         bridge,
         "live_add_gain_ride",
-        args.ride,
+        ride,
         true,
         ws,
       );
@@ -224,22 +257,29 @@ export async function auditionRide(
         startSeconds: points[0].timeSeconds,
         endSeconds: points[points.length - 1].timeSeconds,
       };
-      const queue = async () => {
+      const queue = async (afterJob?: string) => {
         const job = await startRenderJob(
           bridge,
           ws,
           { timeoutMs: 600000 },
           false,
+          afterJob,
         );
         if (!("jobId" in job) || !job.jobId) throw Error("Missing render job");
         return job.jobId;
       };
       progress.a = await queue();
-      await update({ phase: "preparing", source, candidate, ...progress });
-      await runMusic(bridge, "live_add_gain_ride", args.ride, false, ws);
+      await update({
+        phase: "preparing",
+        source,
+        candidate,
+        ownerPid: process.pid,
+        ...progress,
+      });
+      await runMusic(bridge, "live_add_gain_ride", ride, false, ws);
       await liveProject(bridge, ws, "save", candidate);
       const candidateSha256 = digest(await savedProjectBytes(ws, candidate));
-      progress.b = await queue();
+      progress.b = await queue(progress.a);
       await update({
         phase: "rendering",
         source,
@@ -248,7 +288,7 @@ export async function auditionRide(
         candidateSha256,
         ...progress,
         section,
-        ride: args.ride,
+        ride,
       });
     } finally {
       child.kill();

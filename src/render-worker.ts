@@ -1,15 +1,26 @@
-import { open, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { open, rename, stat, writeFile } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ToolError } from "./errors.js";
 import { nativeObservation } from "./native-observation.js";
 import { locateReaper } from "./render.js";
 import { liveIni } from "./profile.js";
-import { digest, inputSchema, jobDirectory, saveState } from "./render-job.js";
+import {
+  digest,
+  inputSchema,
+  jobDirectory,
+  jobStatus,
+  saveState,
+} from "./render-job.js";
 import { Workspace } from "./workspace.js";
 
 // Validate the complete chunk table without loading an orchestral render into RAM.
-export async function verifyMix(file: string, seconds: number) {
+export async function verifyMix(
+  file: string,
+  endSeconds: number,
+  startSeconds = 0,
+) {
   const wav = await open(file, "r");
   const invalid = () =>
     new ToolError(
@@ -58,7 +69,15 @@ export async function verifyMix(file: string, seconds: number) {
       }
       offset += 8 + length + (length % 2);
     }
-    if (offset !== size || !frames || Math.abs(frames - seconds * 44100) > 1.01)
+    // REAPER's native render dialog can round fractional bounds to milliseconds.
+    const exact = (endSeconds - startSeconds) * 44100;
+    const dialog =
+      (Math.round(endSeconds * 1000) - Math.round(startSeconds * 1000)) * 44.1;
+    if (
+      offset !== size ||
+      !frames ||
+      Math.min(Math.abs(frames - exact), Math.abs(frames - dialog)) > 1.01
+    )
       throw invalid();
     return { frames, sampleRate: 44100, channels: 2, bytes: size };
   } finally {
@@ -106,6 +125,34 @@ async function work(
     const input = inputSchema.parse(
       JSON.parse((await ws.read(dir + "/input.json")).toString()),
     );
+    // A/B renders load the same instruments. Serialise the two private plugin scans.
+    if (input.afterJob) {
+      const deadline = Date.now() + 630000;
+      await saveState(folder, "worker", {
+        pid: process.pid,
+        deadline,
+        stage: "waiting",
+      });
+      while (
+        ["queued", "waiting", "rendering", "cancelling"].includes(
+          (await jobStatus(ws, input.afterJob)).state,
+        )
+      ) {
+        await check();
+        controller.signal.throwIfAborted();
+        if (Date.now() > deadline)
+          throw new ToolError(
+            "dependency_timeout",
+            "Previous render did not finish",
+          );
+        await delay(250);
+      }
+      await saveState(folder, "worker", {
+        pid: process.pid,
+        deadline: Date.now() + timeout,
+        stage: "rendering",
+      });
+    }
     const source = await ws.read(dir + "/mix.rpp", 64_000_000);
     if (digest(source) !== input.sha256)
       throw new ToolError(
@@ -143,7 +190,7 @@ async function work(
     );
     if (observation !== "ok") throw new ToolError("render_failed", observation);
     const wav = path.join(folder, "mix.wav"),
-      measurement = await verifyMix(wav, input.endSeconds - input.startSeconds);
+      measurement = await verifyMix(wav, input.endSeconds, input.startSeconds);
     await check();
     controller.signal.throwIfAborted();
     await rename(wav, path.join(folder, "verified.wav"));

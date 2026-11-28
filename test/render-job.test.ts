@@ -30,6 +30,13 @@ test("accept only a full-length complete PCM mix", async () => {
   wav.writeUInt32LE(60, 40);
   await writeFile(file, wav);
   assert.equal((await verifyMix(file, 10 / 44100)).frames, 10);
+  const quantized = Buffer.alloc(44 + 44100 * 6);
+  wav.copy(quantized, 0, 0, 44);
+  quantized.writeUInt32LE(quantized.length - 8, 4);
+  quantized.writeUInt32LE(44100 * 6, 40);
+  await writeFile(file, quantized);
+  assert.equal((await verifyMix(file, 1.00049)).frames, 44100);
+  await writeFile(file, wav);
   await assert.rejects(verifyMix(file, 1), /requested duration/);
   await writeFile(file, wav.subarray(0, 60));
   await assert.rejects(verifyMix(file, 10 / 44100), /complete/);

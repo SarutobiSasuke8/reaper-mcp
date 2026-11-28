@@ -124,7 +124,10 @@ try{
  report.instrumentProbe=catalogProbe;
  const revisionArgs={source:'acceptance.rpp',candidate:'phrase.rpp',ride,section:{startSeconds:0,endSeconds:1.5}};
  const plan=await run('audition_gain_ride',revisionArgs,true);
- const revised=await run('audition_gain_ride',{...revisionArgs,sourceSha256:plan.sourceSha256});
+ const pending=await run('audition_gain_ride',{...revisionArgs,sourceSha256:plan.sourceSha256,waitMs:0});
+ await client.close();await connect();
+ await call('reaper_enable_toolset',{name:'editing',mode:'offline'});
+ const revised=await run('audition_gain_ride',{resume:pending.workflow,waitMs:230000});
  assert.equal(revised.phase,'ready',JSON.stringify(revised));
  assert.ok(revised.deltaLu<=.5);
  const resumed=await run('audition_gain_ride',{resume:revised.workflow});

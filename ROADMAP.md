@@ -10,6 +10,8 @@ The first release should make a producer confident handing an agent a real sessi
 
 ### Windows v1 delivery order
 
+**28 November engineering update.** PR #40 integrates the preceding stack and adds recoverable native mix jobs, instrument readiness probes, one-request gain auditions and passage analysis. The local orchestral acceptance used a disposable copy of the saved full Morning Mood project with a 2 dB bassoon ride. Both full renders survived a retry from their snapshots. FFmpeg independently measured both 95–110 second listening copies at −18.0 LUFS. Dedicated two-second probes of saved Kontakt instruments measured −44.69 dBFS RMS for flute, −40.02 for oboe and −43.96 for harp after reopening. These are test-note levels. Kontakt reported a generic host preset, so the instrument labels come from the source tracks. Independent operator sign-off and cross-server benchmarks remain open. [Integrated candidate](https://github.com/SarutobiSasuke8/reaper-mcp/pull/40)
+
 | Order | Deliverable and dependencies | Acceptance |
 |---|---|---|
 | 1. Integrate the candidate and establish a baseline | Review #35, #37, #38 and #39 in dependency order. Reconcile the support matrix and capture baseline benchmark results on the integrated package. Keep #36 as the release plan. | Install a single identified archive in a clean environment, upgrade an alpha.6 workspace, run discovery, rollback, reconnect, restart and render checks. Every stable operation names an acceptance test. |

@@ -493,8 +493,9 @@ export async function snapshotRender(
   workspace: Workspace,
   section?: z.infer<typeof sectionSchema>,
   stemTrack?: { index: number; guid: string },
+  destination?: string,
 ): Promise<RenderJob> {
-  const folder = await mkdtemp(path.join(workspace.root, "live-render-"));
+  const folder = destination ?? await mkdtemp(path.join(workspace.root, "live-render-"));
   const project = path.join(folder, "mix.rpp");
   const bounds = section ? sectionSchema.parse(section) : undefined;
   const snapshot = await bridge.mutate(
@@ -507,7 +508,7 @@ export async function snapshotRender(
   return { folder, project, snapshot, bounds, stem: !!stemTrack };
 }
 // Stage 2: render one snapshot in its own isolated REAPER process. Jobs are independent and may run side by side.
-export async function runRenderJob(job: RenderJob, workspace: Workspace, timeout: number) {
+export async function runRenderJob(job: RenderJob, workspace: Workspace, timeout: number, signal?: AbortSignal) {
   const exe = await locateReaper();
   if (!exe) throw new ToolError("reaper_not_found", "REAPER is not installed");
   const { folder, project, snapshot, bounds } = job;
@@ -539,6 +540,7 @@ export async function runRenderJob(job: RenderJob, workspace: Workspace, timeout
       ...renderArgs,
     ],
     timeout,
+    signal,
   );
   const output = path.join(folder, stemTrack ? "stem.wav" : "mix.wav");
   if ((await stat(output).catch(() => ({ size: 0 }))).size <= 44)

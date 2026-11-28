@@ -1,3 +1,5 @@
+import { probeCapability, probeInstrument } from "./instrument-probe.js";
+import { startJobCapability, controlJobCapability, startRenderJob, controlRenderJob, jobStatus, listJobs } from "./render-job.js";
 import { candidateCapability, forkSavedProject } from "./candidate.js";
 import { capabilityCatalogue } from "./contract.js";
 import { verifyAuditionCapability, verifyAuditionRender, selectAuditionCapability, selectAuditionRender, auditionCapability, createAudition } from "./audition.js";
@@ -218,7 +220,26 @@ export async function call(
       "reaper_describe",
       "reaper_find_capability",
     ]);
-    if ((name === "reaper_get" || name === "reaper_list") && isLibraryPath(args.path)) {
+    if ((name === "reaper_get" || name === "reaper_list") && String(args.path).startsWith("/render_jobs")) {
+      const id=String(args.path).split("/")[2];
+      if(id && name==="reaper_list")throw new ToolError("invalid_path","Use get for an individual job");
+      if(id)value=await jobStatus(service.workspace,id);
+      else{
+        const jobs=await listJobs(service.workspace);
+        const offset=Number(args.offset??0);
+        value=name==="reaper_get"?jobs:{total:jobs.length,offset,items:jobs.slice(offset,offset+Number(args.limit))};
+      }
+    } else if (name==="reaper_run" && args.capability===probeCapability.name) {
+      if(!service.enabled.has("editing"))throw new ToolError("toolset_disabled","Enable the editing toolset first");
+      value=await probeInstrument(service.workspace,probeCapability.schema.parse(args.args),Boolean(args.dryRun));
+    } else if (name==="reaper_run" && args.capability===controlJobCapability.name) {
+      if(!service.enabled.has("editing"))throw new ToolError("toolset_disabled","Enable the editing toolset first");
+      value=await controlRenderJob(service.workspace,controlJobCapability.schema.parse(args.args),Boolean(args.dryRun));
+    } else if (name==="reaper_run" && args.capability===startJobCapability.name) {
+      if(!service.enabled.has("editing"))throw new ToolError("toolset_disabled","Enable the editing toolset first");
+      if(selected!=="live")throw new ToolError("unsupported_offline","Starting a render job requires a live project");
+      value=await startRenderJob(service.live!,service.workspace,startJobCapability.schema.parse(args.args),Boolean(args.dryRun));
+    } else if ((name === "reaper_get" || name === "reaper_list") && isLibraryPath(args.path)) {
       const found = readLibrary(args.path);
       if (found === undefined) throw new ToolError("not_found", "Unknown library path; use /styles, /personas or /personas/{id}");
       if (name === "reaper_get") value = found;

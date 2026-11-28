@@ -31,7 +31,32 @@ try{
  await run('live_insert_performance',performance);assert.equal((await call('reaper_get',{path:'/tracks/0/items/0/notes'})).length,4);
  assert.equal((await call('reaper_get',{path:'/tracks/0/items/0/controllers'})).filter(c=>c.controller===11).length,13);
  await call('reaper_project',{operation:'save',file:'acceptance.rpp'});
- const rendered=await call('reaper_render',{target:'mix',timeoutMs:240000});
+ const catalogProbe=await run('probe_instrument',{source:{instrument:'test-synth'}});
+ assert.ok(catalogProbe.passed,JSON.stringify(catalogProbe));
+ assert.ok(catalogProbe.reopened.audible && catalogProbe.first.audible);
+ const missingProbe=await run('probe_instrument',{source:{instrument:'missing-fixture'}});
+ assert.equal(missingProbe.reason,'instrument_not_listed');
+ const job=await run('start_render_job',{timeoutMs:240000});
+ const status=()=>call('reaper_get',{mode:'offline',path:job.statusPath});
+ async function waitForJob(states){
+   const until=Date.now()+250000;
+   while(Date.now()<until){
+     const info=await status();
+     if(states.includes(info.state))return info;
+     if(['failed','interrupted','cancelled','completed'].includes(info.state))throw Error(JSON.stringify(info));
+     await delay(100);
+   }
+   throw Error('Job did not reach '+states.join('/'));
+ }
+ await run('control_render_job',{jobId:job.jobId,attempt:1,action:'cancel'});
+ await waitForJob(['cancelled']);
+ await run('control_render_job',{jobId:job.jobId,attempt:1,action:'retry',timeoutMs:240000});
+ await assert.rejects(run('control_render_job',{jobId:job.jobId,attempt:1,action:'retry'}),/current job status/);
+ await client.close();await connect();
+ assert.ok((await call('reaper_get',{mode:'offline',path:'/render_jobs'})).includes(job.jobId));
+ const rendered=await waitForJob(['completed']);
+ assert.equal(rendered.attempt,2);
+ assert.equal(rendered.measurement.channels,2);
  const measurement=analyze(decodeWav(await readFile(path.join(root,rendered.files[0]))));assert(measurement.peakDbfs>-65);assert.equal(measurement.clippedSamples,0);
  await client.close();await connect();await ready();assert.equal((await call('reaper_get',{path:'/tracks'})).length,1);
  await client.close();client=null;await stopOwned();await delay(5500);
@@ -96,6 +121,8 @@ try{
  assert.deepEqual(await readFile(path.join(root,'acceptance.rpp')),sourceBytes);
  const report={result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,checks:['fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen','editable candidate fork, matched selection and verified reopened note edit'],rendered,measurement,verified,rejected};
  report.ride={requestedDb:6,measuredDb:gain(.09,.24),afterRideDb:gain(1.05,1.20)};
+ report.instrumentProbe=catalogProbe;
+ report.checks.push('catalogue instrument rendered before and after reopening','cancelled mix retried from snapshot across a client reconnect');
  report.checks.push('approved project reopened after managed process restart','scoped gain verified inside and after ride','3/4 to 6/8 tempo map in bars and quarter notes');
  await writeFile(path.join(root,'release-check.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{if(client)await client.close();await stopOwned();}

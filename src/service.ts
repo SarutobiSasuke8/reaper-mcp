@@ -29,7 +29,7 @@ export const pathSchema = z
     // A track may also be addressed live by its GUID in braces: /tracks/{GUID}/fx
     // /styles and /personas/<id> read the built-in composition library in either mode.
     /^\/(?:project|tracks|markers|plugins|instruments|styles|personas)(?:\/(?:[a-zA-Z_]+|[a-z0-9]+(?:-[a-z0-9]+)+|0|[1-9][0-9]*|\{[0-9A-Fa-f-]{36}\}))*$/,
-  );
+  ).or(z.string().regex(/^\/render_jobs(?:\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})?$/));
 export { capabilities } from "./editing.js";
 import { capabilities, editSong } from "./editing.js";
 import { capabilityCatalogue } from "./contract.js";

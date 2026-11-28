@@ -35,6 +35,16 @@ The experimental `live_add_gain_ride` appends the bundled Volume/Pan Adjustment 
 
 ## Release evidence
 
+### Recoverable mix renders
+
+Enable editing, read the live project and call `start_render_job` with an optional beat section and timeout. It captures a full native snapshot before returning the job ID. Use `reaper_get` on its statusPath, or list `/render_jobs` after a disconnect. Use offline mode for these reads when the bridge is down. States include queued, rendering, cancelling, cancelled, interrupted, failed and completed. Only completed attempts return a delivery path. Each attempt checks the complete PCM WAV structure, channel layout, sample rate and duration before publishing it. The current job format is stereo 24-bit PCM RIFF at 44.1 kHz.
+
+`control_render_job` accepts a job ID, the attempt number from status and either cancel or retry. A detached worker controls only its own render process. Retry uses the fingerprinted RPP and a fresh destination. External sample files and plugin installations remain dependencies. A renderer interrupted outside the MCP may still finish its private attempt without publishing it. Existing synchronous stem, mix and offline region renders retain their original interface.
+
+### Instrument readiness
+
+`probe_instrument` accepts a catalogue ID or a workspace-relative saved project and instrument track GUID or unique exact track name. A private REAPER instance loads the catalogue entry or copies just the saved track's instrument onto a fresh track. It plays the requested note on a zero-based MIDI channel with velocity, CC1 and CC11, saves a probe project, renders it and repeats the render in a newly started REAPER process. The report includes host FX/preset observations, two WAVs and note-window RMS levels. The default pass criterion is above −80 dBFS RMS in both renders. Silence identifies a failed test with those inputs. The result alone cannot distinguish an empty patch, channel assignment, sample-loading problem or a note outside the playable range. Track names are producer labels and a sampler may expose only a generic preset name.
+
 The candidate incorporates the quick start proposed in PR #8 and the registry identifier and metadata from PR #9. Those earlier drafts reference superseded package details. The quick start points at the published alpha.6, while the candidate registry metadata tracks the packed alpha.7.
 
 The Windows workflow installs the packed tarball and exercises discovery over stdio on Node 20 and 22. The native job downloads the Node 22 artifact, starts isolated REAPER, tests restart/reopen and candidate selection, and runs the offline render, batch rollback, lifecycle, editing and routing fixtures. It runs for PRs, main, tags and manual dispatch. Unit, package and native results are separate. The Node 22 job also upgrades an alpha.6 installation in place and reopens its saved MIDI project. A second operator's clean-install run remains a release sign-off step.

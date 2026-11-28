@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, writeFile, mkdir, readFile } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
+import { nativeObservation } from "../src/native-observation.js";
+import { alive } from "../src/startup.js";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -12,6 +15,41 @@ import {
   saveState,
 } from "../src/render-job.js";
 import { verifyMix } from "../src/render-worker.js";
+
+test(
+  "interrupting a Windows worker stops its private scanner child",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "render-cancel-tree-"));
+    const pidFile = path.join(dir, "scanner.pid");
+    const script =
+      "const child=require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});require('node:fs').writeFileSync(process.argv[1],String(child.pid));setInterval(()=>{},1000);";
+    const controller = new AbortController();
+    const running = nativeObservation(
+      process.execPath,
+      ["-e", script, pidFile],
+      path.join(dir, "observation"),
+      Date.now() + 20000,
+      controller.signal,
+    );
+    const stopped = assert.rejects(running);
+    let pid = 0;
+    try {
+      for (let i = 0; i < 100 && !pid; i++) {
+        pid = Number(await readFile(pidFile, "utf8").catch(() => ""));
+        if (!pid) await delay(50);
+      }
+      assert.ok(pid && alive(pid));
+      controller.abort();
+      await stopped;
+      assert.equal(alive(pid), false);
+    } finally {
+      controller.abort();
+      await stopped;
+      if (pid && alive(pid)) process.kill(pid);
+    }
+  },
+);
 
 test("accept only a full-length complete PCM mix", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "mix-verification-"));

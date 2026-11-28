@@ -18,6 +18,7 @@ import { liveIni } from "./profile.js";
 import { locateReaper } from "./render.js";
 import { digest, jobStatus, saveState, startRenderJob } from "./render-job.js";
 import { alive } from "./startup.js";
+import { stopPrivateReaper } from "./native-observation.js";
 import { Workspace } from "./workspace.js";
 
 const waitMs = z.number().int().min(0).max(600000).default(120000);
@@ -291,7 +292,7 @@ export async function auditionRide(
         ride,
       });
     } finally {
-      child.kill();
+      await stopPrivateReaper(child,!progress.b);
       await exited;
     }
   } catch (e) {

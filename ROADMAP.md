@@ -1,5 +1,58 @@
 # REAPER MCP roadmap
 
+## Product and tooling plan, 27 November 2026
+
+The first release should make a producer confident handing an agent a real session. Give it a passage, hear two fair comparisons, choose a take, and receive both the exact approved audio and the editable project that produced it. To earn a broader claim, the same product must also compose, track, edit, mix and deliver several kinds of music better than the leading alternatives on comparable briefs.
+
+**Baseline.** The public package is alpha.6. Main includes composition, MIDI groove and lint, auto-mix and DJ tooling. The alpha.7 stack adds a discoverable Windows contract, editable candidates, passage verification and scoped gain automation. It has 24 stable and 25 experimental capabilities behind 14 entry points. The native fixture measured a requested 6 dB ride, unity afterwards and a reproducible approved passage after restart. The existing D and E Morning Mood WAVs also distinguished the handover. Only the bundled fixture establishes independent native re-render reproducibility. The stack still needs integration. [Candidate](https://github.com/SarutobiSasuke8/reaper-mcp/pull/39) · [Windows acceptance](https://github.com/SarutobiSasuke8/reaper-mcp/actions/runs/46084192231)
+
+**Competitive targets.** Benchmark TwelveTake for one-call production workflows, comping and live analysis. Use xDarkzx for dance production and vocal chops, Orpheus for sample discovery and vocal alignment, and ReaMCP for direct session editing. Their documentation identifies tasks to test. Our single measured sidechain comparison with TwelveTake showed similar audio results and fewer setup steps for TwelveTake. [TwelveTake](https://twelvetake.com/tools/reaper-mcp/) · [xDarkzx](https://github.com/xDarkzx/Reaper-MCP) · [Orpheus](https://github.com/mal0ware/Orpheus) · [ReaMCP](https://github.com/danielkinahan/ReaMCP)
+
+### Windows v1 delivery order
+
+| Order | Deliverable and dependencies | Acceptance |
+|---|---|---|
+| 1. Integrate the candidate and establish a baseline | Review #35, #37, #38 and #39 in dependency order. Reconcile the support matrix and capture baseline benchmark results on the integrated package. Keep #36 as the release plan. | Install a single identified archive in a clean environment, upgrade an alpha.6 workspace, run discovery, rollback, reconnect, restart and render checks. Every stable operation names an acceptance test. |
+| 2. Recover interrupted renders | Give each render a durable job ID, project revision, output specification and state. Support status, cancellation of owned work, retry and atomic promotion of validated output. Reconnect to running work or restart a failed render from its saved input. | Close the client mid-render, stop REAPER, cancel one of two jobs and retry. Only a complete readable WAV can be delivered. Retrying produces one identifiable result and preserves the source and unrelated session. |
+| 3. Verify instrument readiness | In parallel with render jobs, build a catalogue probe using a musical test note and controller settings appropriate to the patch. Check plugin discovery, preset or patch identity where exposed, routing, audible output, save and reopen. Record what was observed and what needs a human. | Stock instrument passes on CI. Missing plugin, unavailable preset, wrong MIDI channel and silent output return distinguishable findings where observable. Run the licensed Kontakt/Spitfire flute, oboe and harp on the workstation. Never silently substitute a patch. |
+| 4. Make revise-and-audition one workflow | Build a discoverable operation on the existing fork, edit, render, A/B and receipt capabilities. Resolve bar/beat or seconds against the project tempo map. Bind source revision, edit, range, audition and full render to stable identities. Preserve instrument history, shared returns, master FX and tails. Support explicit approval, rejection and rollback. | One producer request returns two playable aligned previews and their measured loudness. A separate choice returns the full WAV and editable project. Match within 0.5 LU on non-silent fixtures. Reject stale approvals and wrong projects. Exercise reordered tracks, duplicate retries and dry runs. Retain approved audio for variable sampled performances. |
+| 5. Ship and support the exact build | Freeze the stable schemas, document experimental tools, instrument dependencies, supported hosts and recovery. Add a doctor report, installation and upgrade examples, versioned release notes, checksums and an issue template that captures diagnostics without copying session audio. | A second operator completes the stock workflow from the guide using a clean Windows installation and ordinary MCP prompts. The release artifact matches the tested checksum. Record the client and host versions and every manual intervention. |
+
+### Feature development after the Windows core
+
+Start the mix-inspection prototype alongside steps 3–4. Schedule the remaining tracks using benchmark failures and producer feedback. Each row describes work beyond the baseline and a practical promotion test.
+
+| Priority | Producer capability | Build and prove |
+|---|---|---|
+| 1 | Hear and diagnose a mix | Add passage/track/bus/master metering with labelled tap points, short-term and integrated loudness, true peak, spectrum, stereo correlation and mono compatibility. Compare pre/post FX and level-matched references. Separate measured findings from hypotheses. Introduce a masked string part, clipped return and phase cancellation. Localise each and cross-check measurements against an independent meter. |
+| 2 | Route and mix in musical terms | Add one-request shared reverb, submix buses, parallel compression and sidechain setup. Expose signal flow, detector channels, send tap, plugin parameter units, bypass and gain-matched FX audition. Add bounded send and parameter rides alongside track gain. On a kick/bass/return fixture verify detector isolation, ducking, levels outside the passage and exact undo. |
+| 3 | Build an expressive score performance | Add MusicXML import with voices, repeats, ties, slurs, dynamics and tempo changes. Preserve source measure and voice through editing. Map range, articulation, keyswitch lead time, CC1/11, sustain and release by instrument. Provide piano pedal/voicing control, reusable orchestral seating and return templates. Test score fidelity independently of performance shaping on a redistributable piano score and an orchestral handover. Blind-audition expressive results. |
+| 4 | Produce an original dance arrangement | Expose loop audition with tempo/key confidence, warp and bar alignment, drum patterns and fills, bass/chord voicing, swing, automation builds and drops, vocal chops and transitions. Reuse the existing groove, DJ and analysis code. Have an agent build a 32-bar arrangement and stems. Verify downbeats, creative edits, sidechain behaviour, tail handling and editable MIDI/audio. |
+| 5 | Record and edit audio | Add explicit recording target and input, takes and fixed lanes, comping, per-take FX, slip edits, stretch markers, crossfades and phrase alignment. Build on imported takes before testing actual recording with user-selected hardware. Assemble a vocal comp from three supplied takes, preserve alternatives, verify boundaries and undo it. Test input/monitor setup separately with a human operator. |
+| 6 | Deliver masters, stems and alternate versions | Add region render matrix and presets, delivery formats and metadata, sample-rate and bit-depth policies, true-peak/loudness targets, shared-return handling and a manifest of outputs. Verify duration, silence, clipping, tails and filenames. Test stem reconstruction on a linear fixture and document behaviour through nonlinear master FX. |
+| 7 | Handle large sessions and other setups | Page and filter session reads, identify tracks by GUID, return changes since the last read, invalidate caches after manual edits, report slow operations and bound work on the REAPER UI thread. Measure cold start, read latency, time to preview and memory on 16-, 64- and 128-track projects. Test two concurrent clients. Bring macOS and Linux through native install, audition and recovery acceptance independently. |
+
+### How agents and producers should use the tools
+
+Keep the compact discovery interface. Each stable operation should declare its units, side effects, supported mode, prerequisites, dry-run behaviour and recovery instructions. Preserve low-level primitives for exact work. Add high-level operations where the same sequence recurs across briefs. A successful edit should return the affected identities and time range, a concise change summary, undo or candidate information and playable outputs when relevant. Test ordinary wording in at least two MCP clients, including ambiguous track names, wrong units, unavailable hardware and a human changing the session between preview and apply.
+
+### Benchmark and release decisions
+
+Use redistributable projects and bundled plugins for the public suite. Keep licensed orchestral tests as a separately documented local suite. Pin the MCP, REAPER, client and model versions, task wording, machine, inputs and time budget. Run multiple fresh trials, rotate server order, and report individual failures and unsupported tasks. Capture tool calls, human interventions, context size, elapsed time, audible output and the saved project. Compare listening quality blind at matched loudness. Keep technical correctness and listener preference as separate results.
+
+| Benchmark brief | Principal check |
+|---|---|
+| Install and reach first audible note | Time, manual steps, diagnosis of a deliberately missing patch |
+| Revise an orchestral handover and approve it | Correct track, range, score fidelity, shared reverb, recall and approved delivery |
+| Perform a piano score | Note/pedal fidelity, phrasing preference, editable performance |
+| Produce a dance section and duck the bass | Timing, measured ducking, arrangement, steps and listening result |
+| Comp and align a vocal | Correct takes, retained alternatives, timing, clean boundaries |
+| Diagnose and repair a faulty mix | Correct track and cause, independent measurements, minimal unrelated changes |
+| Deliver regions, stems and master | Valid files, routing, gain, tails and preset compliance |
+| Interrupt and recover a large session | No source loss, wrong-target writes, duplicate edits or partial delivery |
+
+**Proposed decision rule.** A wrong-target edit, overwritten source or partial file reported as complete fails the relevant brief regardless of speed. Start with five trials per task and server to expose failure patterns. Increase repetitions for close results. For a narrow leadership claim, publish a reproducible lead on that named workflow. For an all-round claim, require independent reproduction, coverage of every benchmark family, and wins across a majority of the families against the strongest tested alternative in each. Publish ties, losses, platform coverage and uncertainty alongside wins. Re-run after substantial releases and use the largest observed gap to select the next build.
+
 ## Proposed 1.0 release plan
 
 **Release promise.** On a documented Windows setup, an MCP client can open an existing REAPER project, make a bounded musical edit in a separate editable candidate, compare the passage at matched loudness, and deliver a verified full render of the chosen project after a restart. A producer can also start from an empty project, add a playable instrument and record the resulting arrangement to disk as an editable project and WAV.

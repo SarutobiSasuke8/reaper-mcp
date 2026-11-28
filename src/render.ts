@@ -33,9 +33,7 @@ export async function runProcess(
   executable: string,
   args: string[],
   timeoutMs: number,
-  signal?: AbortSignal,
 ): Promise<void> {
-  signal?.throwIfAborted();
   await new Promise<void>((resolve, reject) => {
     const child = spawn(executable, args, {
       windowsHide: true,
@@ -43,22 +41,17 @@ export async function runProcess(
       shell: false,
     });
     let timedOut = false;
-    const cancel = () => { child.kill(); };
-    signal?.addEventListener("abort", cancel, { once: true });
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill();
     }, timeoutMs);
     child.once("error", () => {
-      signal?.removeEventListener("abort", cancel);
       clearTimeout(timer);
       reject(new ToolError("render_launch", "Could not start REAPER"));
     });
     child.once("exit", (code) => {
-      signal?.removeEventListener("abort", cancel);
       clearTimeout(timer);
-      if (signal?.aborted) reject(new ToolError("cancelled", "Render cancelled"));
-      else if (timedOut)
+      if (timedOut)
         reject(
           new ToolError(
             "render_timeout",

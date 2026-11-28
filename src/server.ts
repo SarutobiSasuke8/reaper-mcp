@@ -1,3 +1,4 @@
+import { auditionRide, revisionCapability } from "./revision.js";
 import { probeCapability, probeInstrument } from "./instrument-probe.js";
 import { startJobCapability, controlJobCapability, startRenderJob, controlRenderJob, jobStatus, listJobs } from "./render-job.js";
 import { candidateCapability, forkSavedProject } from "./candidate.js";
@@ -229,6 +230,9 @@ export async function call(
         const offset=Number(args.offset??0);
         value=name==="reaper_get"?jobs:{total:jobs.length,offset,items:jobs.slice(offset,offset+Number(args.limit))};
       }
+    } else if (name==="reaper_run" && args.capability===revisionCapability.name) {
+      if(!service.enabled.has("editing"))throw new ToolError("toolset_disabled","Enable the editing toolset first");
+      value=await auditionRide(service.workspace,revisionCapability.schema.parse(args.args),Boolean(args.dryRun));
     } else if (name==="reaper_run" && args.capability===probeCapability.name) {
       if(!service.enabled.has("editing"))throw new ToolError("toolset_disabled","Enable the editing toolset first");
       value=await probeInstrument(service.workspace,probeCapability.schema.parse(args.args),Boolean(args.dryRun));

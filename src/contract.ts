@@ -1,3 +1,4 @@
+import { revisionCapability } from "./revision.js";
 import { probeCapability } from "./instrument-probe.js";
 import { startJobCapability, controlJobCapability } from "./render-job.js";
 import { candidateCapability } from "./candidate.js";
@@ -10,7 +11,7 @@ import { lintCapability } from "./lint.js";
 import { grooveCapability } from "./groove.js";
 
 const groups: [string, "stable" | "experimental", string[]][] = [
-  ["scripts/windows-release-check.mjs", "experimental", ["start_render_job","control_render_job","probe_instrument"]],
+  ["scripts/windows-release-check.mjs", "experimental", ["start_render_job","control_render_job","probe_instrument","audition_gain_ride"]],
   ["test/editing.test.ts", "stable", ["add_track","add_item","add_fx","delete_track","delete_item","duplicate_item","move_item","add_notes","transpose_notes","quantize_notes","add_send","add_marker","batch_edit"]],
   ["scripts/windows-release-check.mjs", "stable", ["live_add_track", "live_insert_instrument", "live_insert_performance"]],
   ["scripts/editing-check.mjs", "stable", ["live_edit_performance", "live_set_fx_parameter", "live_revert_fx_edit"]],
@@ -28,7 +29,7 @@ const status = new Map(groups.flatMap(([acceptance, maturity, names]) =>
   names.map(name => [name, { acceptance, maturity }] as const)));
 
 export const capabilityCatalogue = [
-  startJobCapability, controlJobCapability, probeCapability,
+  startJobCapability, controlJobCapability, probeCapability, revisionCapability,
   ...capabilities.map(c => ({ ...c, modes: ["offline"] })),
   ...musicCapabilities, candidateCapability, auditionCapability, verifyAuditionCapability, selectAuditionCapability, autoMixCapability,
   djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability,

@@ -122,6 +122,17 @@ try{
  const report={result:'PASS',root,packageVersion:JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version,checks:['fresh hidden dummy startup','bundled instrument insertion','dry-run immutability','MIDI and articulation readback','CC ramp readback','native save','audible unclipped isolated render','MCP client reconnect','managed REAPER restart and reopen','editable candidate fork, matched selection and verified reopened note edit'],rendered,measurement,verified,rejected};
  report.ride={requestedDb:6,measuredDb:gain(.09,.24),afterRideDb:gain(1.05,1.20)};
  report.instrumentProbe=catalogProbe;
+ const revisionArgs={source:'acceptance.rpp',candidate:'phrase.rpp',ride,section:{startSeconds:0,endSeconds:1.5}};
+ const plan=await run('audition_gain_ride',revisionArgs,true);
+ const revised=await run('audition_gain_ride',{...revisionArgs,sourceSha256:plan.sourceSha256});
+ assert.equal(revised.phase,'ready',JSON.stringify(revised));
+ assert.ok(revised.deltaLu<=.5);
+ const resumed=await run('audition_gain_ride',{resume:revised.workflow});
+ assert.equal(resumed.manifest,revised.manifest);
+ const approved=await run('select_audition_render',{manifest:revised.manifest,choice:'B'});
+ assert.equal(approved.project.file,'phrase.rpp');
+ assert.deepEqual(await readFile(path.join(root,'acceptance.rpp')),sourceBytes);
+ report.checks.push('single-request gain ride, matched listening copies, resumed manifest and independent approval');
  report.checks.push('catalogue instrument rendered before and after reopening','cancelled mix retried from snapshot across a client reconnect');
  report.checks.push('approved project reopened after managed process restart','scoped gain verified inside and after ride','3/4 to 6/8 tempo map in bars and quarter notes');
  await writeFile(path.join(root,'release-check.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

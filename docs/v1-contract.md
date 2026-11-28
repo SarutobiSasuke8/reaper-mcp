@@ -41,9 +41,15 @@ Enable editing, read the live project and call `start_render_job` with an option
 
 `control_render_job` accepts a job ID, the attempt number from status and either cancel or retry. A detached worker controls only its own render process. Retry uses the fingerprinted RPP and a fresh destination. External sample files and plugin installations remain dependencies. A renderer interrupted outside the MCP may still finish its private attempt without publishing it. Existing synchronous stem, mix and offline region renders retain their original interface.
 
-### Instrument readiness
+## One-request gain audition
+
+For an edit and audition in one request, preview `audition_gain_ride` with source and candidate sibling RPP paths, ride arguments and an optional listening section in seconds. Apply with the source fingerprint. The MCP opens a private REAPER session, captures separate full-mix jobs and saves the editable candidate. The response includes the matched listening copies or the job states if the wait expires. After reconnecting, pass `resume` with the candidate filename followed by `.audition.json`. Retry any failed render through its job ID. Select A or B explicitly with `select_audition_render`. The existing audition size limit is 64 MB per full input WAV.
+
+## Instrument readiness
 
 `probe_instrument` accepts a catalogue ID or a workspace-relative saved project and instrument track GUID or unique exact track name. A private REAPER instance loads the catalogue entry or copies just the saved track's instrument onto a fresh track. It plays the requested note on a zero-based MIDI channel with velocity, CC1 and CC11, saves a probe project, renders it and repeats the render in a newly started REAPER process. The report includes host FX/preset observations, two WAVs and note-window RMS levels. The default pass criterion is above −80 dBFS RMS in both renders. Silence identifies a failed test with those inputs. The result alone cannot distinguish an empty patch, channel assignment, sample-loading problem or a note outside the playable range. Track names are producer labels and a sampler may expose only a generic preset name.
+
+## Release evidence
 
 The candidate incorporates the quick start proposed in PR #8 and the registry identifier and metadata from PR #9. Those earlier drafts reference superseded package details. The quick start points at the published alpha.6, while the candidate registry metadata tracks the packed alpha.7.
 

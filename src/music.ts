@@ -508,7 +508,7 @@ export async function snapshotRender(
   return { folder, project, snapshot, bounds, stem: !!stemTrack };
 }
 // Stage 2: render one snapshot in its own isolated REAPER process. Jobs are independent and may run side by side.
-export async function runRenderJob(job: RenderJob, workspace: Workspace, timeout: number, signal?: AbortSignal) {
+export async function runRenderJob(job: RenderJob, workspace: Workspace, timeout: number) {
   const exe = await locateReaper();
   if (!exe) throw new ToolError("reaper_not_found", "REAPER is not installed");
   const { folder, project, snapshot, bounds } = job;
@@ -540,7 +540,6 @@ export async function runRenderJob(job: RenderJob, workspace: Workspace, timeout
       ...renderArgs,
     ],
     timeout,
-    signal,
   );
   const output = path.join(folder, stemTrack ? "stem.wav" : "mix.wav");
   if ((await stat(output).catch(() => ({ size: 0 }))).size <= 44)

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { nativeObservation } from "./native-observation.js";
 import { randomUUID } from "node:crypto";
 import {
   mkdtemp,
@@ -10,7 +10,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { setTimeout as delay } from "node:timers/promises";
+
 import { z } from "zod";
 import { decodeWav } from "./audio.js";
 import { savedProjectBytes } from "./candidate.js";
@@ -162,7 +162,7 @@ export async function probeInstrument(
       copy = await ws.resolve(relativeCopy);
     }
     async function observe(project?: string) {
-      const child = spawn(
+      const result = await nativeObservation(
         exe!,
         [
           "-newinst",
@@ -174,44 +174,10 @@ export async function probeInstrument(
             new URL("../../bridge/probe-instrument.lua", import.meta.url),
           ),
         ],
-        { windowsHide: true, stdio: "ignore" },
+        path.join(folder, "observation.txt"),
+        deadline,
       );
-      const exited = new Promise<void>((resolve) => {
-        child.once("exit", () => resolve());
-        child.once("error", () => resolve());
-      });
-      let observation: string | undefined;
-      try {
-        await new Promise<void>((resolve, reject) => {
-          child.once("spawn", resolve);
-          child.once("error", reject);
-        });
-        while (Date.now() < deadline) {
-          observation = await readFile(
-            path.join(folder, "observation.txt"),
-            "utf8",
-          ).catch((e) => {
-            if (e.code !== "ENOENT") throw e;
-            return undefined;
-          });
-          if (observation !== undefined) break;
-          if (child.exitCode !== null)
-            throw new ToolError(
-              "probe_exit",
-              "REAPER exited before the instrument observation",
-            );
-          await delay(100);
-        }
-        if (observation === undefined)
-          throw new ToolError(
-            "probe_timeout",
-            "Timed out loading or rendering the probe. Inspect plugin availability and activation.",
-          );
-        return observation.split(/\r?\n/);
-      } finally {
-        child.kill();
-        await exited;
-      }
+      return result.split(/\r?\n/);
     }
     stage = "load_and_render";
     const [outcome, detail, hostPreset, trackName] = await observe(copy);

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { autoMixCapability, masterOffset, planLevels, type StemFacts } from "../src/automix.js";
+import { autoMixCapability, verifyMix, masterOffset, planLevels, type StemFacts } from "../src/automix.js";
 
 // The planner's fader top is twice unity, which is +6.02 dB, so compare within a hundredth of a dB.
 const near = (actual: number[], expected: number[]) =>
@@ -56,4 +56,11 @@ test("the schema bounds targets, roles and track lists", () => {
   s.parse({ roles: { "0": "lead", "12": "pad" }, tracks: [0, 12] });
   for (const bad of [{ targetLufs: -2 }, { ceilingDb: 1 }, { roles: { lead: "lead" } }, { roles: { "0": "vocals" } }, { tracks: [] }, { tracks: Array.from({ length: 13 }, (_, i) => i) }])
     assert.throws(() => s.parse(bad));
+});
+
+test("verification checks the actual mix against its achievable target and requested ceiling", () => {
+  assert.equal(verifyMix({integratedLufs:-19, truePeakDbfs:-1, clippedSamples:0}, -19,-1).passed, true);
+  assert.deepEqual(verifyMix({integratedLufs:-16,truePeakDbfs:-0.5,clippedSamples:2},-19,-1).failures,
+    ["loudness_outside_tolerance","peak_ceiling_exceeded","clipping"]);
+  assert.equal(verifyMix({integratedLufs:null,truePeakDbfs:null,clippedSamples:0},-19,-1).passed,false);
 });

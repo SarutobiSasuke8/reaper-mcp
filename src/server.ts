@@ -1,4 +1,9 @@
-import { auditionCapability, createAudition } from "./audition.js";
+import { auditionRide, revisionCapability } from "./revision.js";
+import { probeCapability, probeInstrument } from "./instrument-probe.js";
+import { startJobCapability, controlJobCapability, startRenderJob, controlRenderJob, jobStatus, listJobs } from "./render-job.js";
+import { candidateCapability, forkSavedProject } from "./candidate.js";
+import { capabilityCatalogue } from "./contract.js";
+import { verifyAuditionCapability, verifyAuditionRender, selectAuditionCapability, selectAuditionRender, auditionCapability, createAudition } from "./audition.js";
 import { autoMixCapability, autoMix } from "./automix.js";
 import { lintCapability, lintArrangement } from "./lint.js";
 import { grooveCapability, applyGroove } from "./groove.js";
@@ -13,14 +18,12 @@ import { ToolError } from "./errors.js";
 import { packageVersion } from "./version.js";
 import {
   instruments,
-  musicCapabilities,
   runMusic,
   liveProject,
   renderLive,
 } from "./music.js";
 import {
   ReaperService,
-  capabilities,
   modeSchema,
   pathSchema,
   type Mode,
@@ -161,7 +164,8 @@ const definitions = {
     writes: false,
     description:
       "Measure a WAV file with the ported LMMS audio analyser; LUFS and true peak are estimates.",
-    schema: z.object({ ...mode, ...file, referencePath: string.optional().describe("Optional workspace-relative reference WAV") }),
+    schema: z.object({ ...mode, ...file, referencePath: string.optional().describe("Optional workspace-relative reference WAV"),
+      section: auditionCapability.schema.shape.section.describe("Optional interval in seconds, applied to both input and reference") }),
   },
   reaper_run: {
     writes: true,
@@ -218,7 +222,29 @@ export async function call(
       "reaper_describe",
       "reaper_find_capability",
     ]);
-    if ((name === "reaper_get" || name === "reaper_list") && isLibraryPath(args.path)) {
+    if ((name === "reaper_get" || name === "reaper_list") && String(args.path).startsWith("/render_jobs")) {
+      const id=String(args.path).split("/")[2];
+      if(id && name==="reaper_list")throw new ToolError("invalid_path","Use get for an individual job");
+      if(id)value=await jobStatus(service.workspace,id);
+      else{
+        const jobs=await listJobs(service.workspace);
+        const offset=Number(args.offset??0);
+        value=name==="reaper_get"?jobs:{total:jobs.length,offset,items:jobs.slice(offset,offset+Number(args.limit))};
+      }
+    } else if (name==="reaper_run" && args.capability===revisionCapability.name) {
+      if(!service.enabled.has("editing"))throw new ToolError("toolset_disabled","Enable the editing toolset first");
+      value=await auditionRide(service.workspace,revisionCapability.schema.parse(args.args),Boolean(args.dryRun));
+    } else if (name==="reaper_run" && args.capability===probeCapability.name) {
+      if(!service.enabled.has("editing"))throw new ToolError("toolset_disabled","Enable the editing toolset first");
+      value=await probeInstrument(service.workspace,probeCapability.schema.parse(args.args),Boolean(args.dryRun));
+    } else if (name==="reaper_run" && args.capability===controlJobCapability.name) {
+      if(!service.enabled.has("editing"))throw new ToolError("toolset_disabled","Enable the editing toolset first");
+      value=await controlRenderJob(service.workspace,controlJobCapability.schema.parse(args.args),Boolean(args.dryRun));
+    } else if (name==="reaper_run" && args.capability===startJobCapability.name) {
+      if(!service.enabled.has("editing"))throw new ToolError("toolset_disabled","Enable the editing toolset first");
+      if(selected!=="live")throw new ToolError("unsupported_offline","Starting a render job requires a live project");
+      value=await startRenderJob(service.live!,service.workspace,startJobCapability.schema.parse(args.args),Boolean(args.dryRun));
+    } else if ((name === "reaper_get" || name === "reaper_list") && isLibraryPath(args.path)) {
       const found = readLibrary(args.path);
       if (found === undefined) throw new ToolError("not_found", "Unknown library path; use /styles, /personas or /personas/{id}");
       if (name === "reaper_get") value = found;
@@ -230,9 +256,18 @@ export async function call(
     } else if (name === "reaper_run" && args.capability === djAnalyzeCapability.name) {
       if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
       value = await djAnalyze(service.workspace, djAnalyzeCapability.schema.parse(args.args));
+    } else if (name === "reaper_run" && args.capability === candidateCapability.name) {
+      if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
+      value = await forkSavedProject(service.workspace, candidateCapability.schema.parse(args.args), args.dryRun as boolean);
     } else if (name === "reaper_run" && args.capability === auditionCapability.name) {
       if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
       value = await createAudition(service.workspace, auditionCapability.schema.parse(args.args), args.dryRun as boolean);
+    } else if (name === "reaper_run" && args.capability === verifyAuditionCapability.name) {
+      if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
+      value = await verifyAuditionRender(service.workspace, verifyAuditionCapability.schema.parse(args.args));
+    } else if (name === "reaper_run" && args.capability === selectAuditionCapability.name) {
+      if (!service.enabled.has("editing")) throw new ToolError("toolset_disabled", "Enable the editing toolset first");
+      value = await selectAuditionRender(service.workspace, selectAuditionCapability.schema.parse(args.args), args.dryRun as boolean);
     } else if (selected === "live" && !common.has(name)) {
       if (
         (name === "reaper_get" || name === "reaper_list") &&
@@ -297,7 +332,7 @@ export async function call(
           args.stemTrack as { index: number; guid: string } | undefined,
         );
       } else if (name === "reaper_analyze") {
-        value = await service.analyze(args.file as string, args.referencePath as string | undefined);
+        value = await service.analyze(args.file as string, args.referencePath as string | undefined, args.section as {startSeconds:number;endSeconds:number}|undefined);
       } else if (name === "reaper_get")
         value = await service.live!.get(args.path as string);
       else if (name === "reaper_list") {
@@ -323,7 +358,7 @@ export async function call(
             {
               name: "editing",
               enabled: service.enabled.has("editing"),
-              capabilities: [...capabilities, ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability].map(
+              capabilities: capabilityCatalogue.map(
                 (c) => c.name,
               ),
             },
@@ -371,10 +406,7 @@ export async function call(
           };
           break;
         case "reaper_find_capability":
-          value = [
-            ...capabilities.map((c) => ({ ...c, modes: ["offline"] })),
-            ...musicCapabilities, auditionCapability, autoMixCapability, djAnalyzeCapability, djBuildCapability, lintCapability, grooveCapability,
-          ]
+          value = capabilityCatalogue
             .filter((c) =>
               `${c.name} ${c.description}`
                 .toLowerCase()
@@ -385,6 +417,8 @@ export async function call(
               description: c.description,
               toolset: c.toolset,
               modes: c.modes,
+              maturity: c.maturity,
+              acceptance: c.acceptance,
             }));
           break;
         case "reaper_get":
@@ -433,7 +467,7 @@ export async function call(
           );
           break;
         case "reaper_analyze":
-          value = await service.analyze(args.file as string, args.referencePath as string | undefined);
+          value = await service.analyze(args.file as string, args.referencePath as string | undefined, args.section as {startSeconds:number;endSeconds:number}|undefined);
           break;
         case "reaper_run":
           value = service.run(

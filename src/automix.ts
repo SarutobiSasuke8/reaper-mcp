@@ -112,6 +112,16 @@ async function pool<T, R>(items: T[], size: number, run: (item: T) => Promise<R>
   return out;
 }
 
+export function verifyMix(measured: { integratedLufs: number | null; truePeakDbfs: number | null; clippedSamples: number }, targetLufs: number, ceilingDb: number) {
+  const failures: string[] = [];
+  if (measured.integratedLufs === null || !Number.isFinite(measured.integratedLufs)) failures.push("unmeasurable_loudness");
+  else if (Math.abs(measured.integratedLufs - targetLufs) > 1) failures.push("loudness_outside_tolerance");
+  if (measured.truePeakDbfs === null || !Number.isFinite(measured.truePeakDbfs)) failures.push("unmeasurable_peak");
+  else if (measured.truePeakDbfs > ceilingDb) failures.push("peak_ceiling_exceeded");
+  if (measured.clippedSamples > 0) failures.push("clipping");
+  return { passed: failures.length === 0, failures, expectedLufs: targetLufs, toleranceLu: 1 };
+}
+
 export async function autoMix(bridge: LiveBridge, workspace: Workspace, a: Args, dryRun: boolean) {
   const started = Date.now();
   const all = (await bridge.get("/tracks")) as TrackView[];
@@ -175,7 +185,7 @@ export async function autoMix(bridge: LiveBridge, workspace: Workspace, a: Args,
   });
   const steps = tracks
     .filter((t) => Math.abs(t.changeDb) >= 0.05)
-    .map((t) => ({ action: "set_track", args: { track: t.index, field: "volume_db", value: t.afterDb } }));
+    .map((t) => ({ action: "set_track", args: { track: all[t.index]!.guid, field: "volume_db", value: t.afterDb } }));
   const result: Record<string, unknown> = {
     dryRun,
     targetLufs: a.targetLufs,
@@ -200,6 +210,7 @@ export async function autoMix(bridge: LiveBridge, workspace: Workspace, a: Args,
     const mix = await runRenderJob(job, workspace, a.timeoutMs);
     const measured: any = analyze(decodeWav(await workspace.read(mix.files[0]!, 100_000_000)));
     result.verified = {
+      ...verifyMix(measured, predictedLufs + master.offsetDb, a.ceilingDb),
       file: mix.files[0],
       integratedLufs: measured.integratedLufs,
       truePeakDbfs: measured.truePeakDbfs,

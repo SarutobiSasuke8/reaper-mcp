@@ -6,6 +6,8 @@ An agent-first MCP server for [REAPER](https://www.reaper.fm/), built by Alexei 
 
 Compose native MIDI tracks, insert configured instruments, shape CC dynamics and keyswitch articulations, save projects and render audio through 14 MCP tools. Offline workflows also support a conservative RPP subset, MIDI/WAV import, mix/stem/region rendering and audio measurements.
 
+For development builds, see the [v1 capability classifications and release tests](docs/v1-contract.md).
+
 Windows 10/11 with a separately installed REAPER is the supported alpha target. Native acceptance is tested on REAPER 7.86. [Install and configure](docs/install-windows.md), [supported operations and limits](docs/windows-alpha.md), [release evidence](docs/release-alpha-4.md).
 
 ```sh

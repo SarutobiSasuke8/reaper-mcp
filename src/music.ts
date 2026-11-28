@@ -144,6 +144,17 @@ const itemRef = { track, item: editIndex, itemGuid: text };
 const markerRef = { id: z.number().int().min(0).max(2147483647), isRegion: z.boolean().default(false) };
 // Arrangement capabilities: transport, markers and regions, tempo map, items and track removal.
 export const arrangeSchemas = {
+  live_add_gain_ride: z.object({
+    track: z.string().regex(/^\{[a-fA-F0-9-]+\}$/),
+    rideId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+    unit: z.enum(["seconds", "quarterNotes", "bars"]),
+    points: z.array(z.object({
+      position: z.number().finite().min(0).max(10000),
+      gainDb: z.number().finite().min(-24).max(12),
+    }).strict()).min(3).max(128),
+  }).strict().refine(({points}) => points[0]?.gainDb === 0 && points[points.length-1]?.gainDb === 0 &&
+    points.every((p,i) => i === 0 || p.position > points[i-1]!.position),
+    "Use increasing positions with zero dB at both ends"),
   live_transport: z.object({
     command: z.enum(["play", "stop", "pause", "seek", "set_loop"]),
     beat: beat.optional(),
@@ -217,6 +228,7 @@ export const arrangeSchemas = {
   }),
 };
 const arrangeDescriptions: Record<keyof typeof arrangeSchemas, string> = {
+  live_add_gain_ride: "Append a dedicated stereo gain effect with linear dB automation. Positions use seconds, quarter notes or zero-based fractional bars. Start and end at unity. Use a unique rideId and a track GUID. Existing fader automation and pre-FX sends are unaffected.",
   live_transport: "Control playback: play, stop, pause, seek (beat) or set_loop (enabled and/or startBeat with endBeat). Read /project/transport for state. Not a project edit: no undo step and not allowed in live_batch. Refused while REAPER is recording; recording is not controlled by this server.",
   live_add_marker: "Add a marker at beat, or a region when endBeat is given. Returns its id. Read /markers to list them.",
   live_edit_marker: "Rename or move a marker or region found by id and isRegion from /markers. Omitted fields are kept.",
@@ -481,8 +493,9 @@ export async function snapshotRender(
   workspace: Workspace,
   section?: z.infer<typeof sectionSchema>,
   stemTrack?: { index: number; guid: string },
+  destination?: string,
 ): Promise<RenderJob> {
-  const folder = await mkdtemp(path.join(workspace.root, "live-render-"));
+  const folder = destination ?? await mkdtemp(path.join(workspace.root, "live-render-"));
   const project = path.join(folder, "mix.rpp");
   const bounds = section ? sectionSchema.parse(section) : undefined;
   const snapshot = await bridge.mutate(
